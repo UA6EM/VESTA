@@ -1,6 +1,6 @@
 // Генератор для катушки Мишина на контроллере ESP32
 // Partition Scheme: NO OTA (2MB APP, 2MB SPIFFS)
-// test pull on local
+
 
 #define SECONDS(x) ((x)*1000UL)
 #define MINUTES(x) (SECONDS(x) * 60UL)
@@ -14,17 +14,21 @@
 #if (defined(ESP32))
 #define WIFI                            // Используем модуль вайфая
 #include <WiFi.h>
-//#include <HTTPClient.h>
+#include <HTTPClient.h>
 #include <WiFiClient.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <sqlite3.h>
-//#include "testSql.h"
+
 #include <SPI.h>
 #include <FS.h>
 #include "SPIFFS.h"
+
 #include "AiEsp32RotaryEncoder.h"
 #include "Arduino.h"
+#include "config.h"
+
 #include <Ticker.h>
 Ticker blinks;
 float blinkPeriod = 0.25;
@@ -121,11 +125,11 @@ const int /*uint8_t*/ maxTimers = 4;
 int timerPosition = 0;
 volatile int newEncoderPos;            // Новая позиция энкодера
 static int currentEncoderPos = 0;      // Текущая позиция энкодера
+volatile  int d_resis = 127;           // Средняя позиция потенциометра
 
-volatile  int d_resis = 127;
-const char * ssid = "Open7";              // Название WIFI сети
-const char * password = "1234567";      // Пароль от WIFI сети
-
+// Дисплей TFT 240x320 ILI9341 или аналогичный, без разницы, без TOUCH
+#include <TFT_eSPI.h>
+TFT_eSPI tft = TFT_eSPI();
 
 
 #include <MCP4151.h>  // https://github.com/UA6EM/MCP4151/tree/mpgsp
@@ -432,6 +436,191 @@ void readAnalogAndSetFreqInLoop() {
 
 // *** Вывод на дисплей ***
 void myDisplay() {
+  Serial.println("TFT Dispay is OK");
+}
+
+
+//  ***** ТЕСТИРОВАНИЕ БАЗЫ SQLite3 *****
+void testSqlite3() {
+  sqlite3 *db1;
+  sqlite3 *db2;
+  int rc;
+
+  if (!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)) {
+    Serial.println("Failed to mount file system");
+    return;
+  }
+
+  // list SPIFFS contents
+  File root = SPIFFS.open("/");
+  if (!root) {
+    Serial.println("- failed to open directory");
+    return;
+  }
+  if (!root.isDirectory()) {
+    Serial.println(" - not a directory");
+    return;
+  }
+  File file = root.openNextFile();
+  while (file) {
+    if (file.isDirectory()) {
+      Serial.print("  DIR : ");
+      Serial.println(file.name());
+    } else {
+      Serial.print("  FILE: ");
+      Serial.print(file.name());
+      Serial.print("\tSIZE: ");
+      Serial.println(file.size());
+    }
+    file = root.openNextFile();
+  }
+
+  // remove existing file
+  SPIFFS.remove("/test1.db");
+  SPIFFS.remove("/test2.db");
+
+  sqlite3_initialize();
+
+  if (db_open("/spiffs/test1.db", &db1))
+    return;
+  if (db_open("/spiffs/test2.db", &db2))
+    return;
+
+  rc = db_exec(db1, "CREATE TABLE test1 (id INTEGER, content);");
+  if (rc != SQLITE_OK) {
+    sqlite3_close(db1);
+    sqlite3_close(db2);
+    return;
+  }
+  rc = db_exec(db2, "CREATE TABLE test2 (id INTEGER, content);");
+  if (rc != SQLITE_OK) {
+    sqlite3_close(db1);
+    sqlite3_close(db2);
+    return;
+  }
+
+  rc = db_exec(db1, "INSERT INTO test1 VALUES (1, 'Hello, World from test1');");
+  if (rc != SQLITE_OK) {
+    sqlite3_close(db1);
+    sqlite3_close(db2);
+    return;
+  }
+  rc = db_exec(db2, "INSERT INTO test2 VALUES (1, 'Hello, World from test2');");
+  if (rc != SQLITE_OK) {
+    sqlite3_close(db1);
+    sqlite3_close(db2);
+    return;
+  }
+
+  rc = db_exec(db1, "SELECT * FROM test1");
+  if (rc != SQLITE_OK) {
+    sqlite3_close(db1);
+    sqlite3_close(db2);
+    return;
+  }
+  rc = db_exec(db2, "SELECT * FROM test2");
+  if (rc != SQLITE_OK) {
+    sqlite3_close(db1);
+    sqlite3_close(db2);
+    return;
+  }
+
+  sqlite3_close(db1);
+  sqlite3_close(db2);
+}
+
+// ************** Т Е С Т  Д И С П Л Е Я *****************/
+unsigned long drawTime = 0;
+
+void testDisplay() {
+  drawTime = millis();
+
+  for (int i = 0; i < 1000; i++) {
+    yield(); tft.drawNumber(i, 100, 80, 1);
+  }
+
+  drawTime = millis() - drawTime;
+  tft.setTextColor(TFT_RED, TFT_BLACK);
+  int xpos = 20;
+  xpos += tft.drawFloat(drawTime / 2890.0, 3, xpos, 180, 4);
+  tft.drawString(" ms per character", xpos, 180, 4);
+  if (drawTime < 100) tft.drawString("Font 1 not loaded!", 50, 210, 4);
+  delay(4000);
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  drawTime = millis();
+
+  for (int i = 0; i < 1000; i++) {
+    yield(); tft.drawNumber(i, 100, 80, 2);
+  }
+
+  drawTime = millis() - drawTime;
+  tft.setTextColor(TFT_RED, TFT_BLACK);
+  xpos = 20;
+  xpos += tft.drawFloat(drawTime / 2890.0, 3, xpos, 180, 4);
+  tft.drawString(" ms per character", xpos, 180, 4);
+  if (drawTime < 200) tft.drawString("Font 2 not loaded!", 50, 210, 4);
+  delay(4000);
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  drawTime = millis();
+
+  for (int i = 0; i < 1000; i++) {
+    yield(); tft.drawNumber(i, 100, 80, 4);
+  }
+
+  drawTime = millis() - drawTime;
+  tft.setTextColor(TFT_RED, TFT_BLACK);
+  xpos = 20;
+  xpos += tft.drawFloat(drawTime / 2890.0, 3, xpos, 180, 4);
+  tft.drawString(" ms per character", xpos, 180, 4);
+  if (drawTime < 200) tft.drawString("Font 4 not loaded!", 50, 210, 4);
+  delay(4000);
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  drawTime = millis();
+
+  for (int i = 0; i < 1000; i++) {
+    yield(); tft.drawNumber(i, 100, 80, 6);
+  }
+
+  drawTime = millis() - drawTime;
+  tft.setTextColor(TFT_RED, TFT_BLACK);
+  xpos = 20;
+  xpos += tft.drawFloat(drawTime / 2890.0, 3, xpos, 180, 4);
+  tft.drawString(" ms per character", xpos, 180, 4);
+  if (drawTime < 200) tft.drawString("Font 6 not loaded!", 50, 210, 4);
+  delay(4000);
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  drawTime = millis();
+
+  for (int i = 0; i < 1000; i++) {
+    yield(); tft.drawNumber(i, 100, 80, 7);
+  }
+
+  drawTime = millis() - drawTime;
+  tft.setTextColor(TFT_RED, TFT_BLACK);
+  xpos = 20;
+  xpos += tft.drawFloat(drawTime / 2890.0, 3, xpos, 180, 4);
+  tft.drawString(" ms per character", xpos, 180, 4);
+  if (drawTime < 200) tft.drawString("Font 7 not loaded!", 50, 210, 4);
+  delay(4000);
+  tft.fillScreen(TFT_YELLOW);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  drawTime = millis();
+
+  for (int i = 0; i < 1000; i++) {
+    yield(); tft.drawNumber(i, 100, 80, 8);
+  }
+
+  drawTime = millis() - drawTime;
+  tft.setTextColor(TFT_RED, TFT_BLACK);
+  xpos = 20;
+  xpos += tft.drawFloat(drawTime / 2890.0, 3, xpos, 180, 4);
+  tft.drawString(" ms per character", xpos, 180, 4);
+  if (drawTime < 200) tft.drawString("Font 8 not loaded!", 50, 210, 4);
+  delay(4000);
 }
 
 
@@ -439,82 +628,98 @@ void myDisplay() {
 void setup() {
   Serial.begin(115200);
 
-
-  // сбрасываем потенциометр в 0%
-  resetPotenciometer();                          // после сброса устанавливаем значение по умолчанию
-  setResistance(currentPotenciometrPercent);     // ждем секунду после настройки потенциометра
-  delay(1000);
-
-  pinMode(ON_OFF_CASCADE_PIN, OUTPUT);
-  pinMode(PIN_ZUM, OUTPUT);
-  pinMode(CORRECT_PIN, INPUT);
-
-  digitalWrite(PIN_ZUM, LOW);
-  digitalWrite(ON_OFF_CASCADE_PIN, HIGH);
-
-  // analogReference(INTERNAL);
-
-  ina219.begin(0x40);                 // (44) i2c address 64=0x40 68=0х44 исправлять и в ina219.h одновременно
-  ina219.configure(0, 2, 12, 12, 7);  // 16S -8.51ms
-  ina219.calibrate(0.100, 0.32, 16, 3.2);
-
-  SPI.begin();
-  // This MUST be the first command after declaring the AD9833 object
-  Ad9833.begin();              // The loaded defaults are 1000 Hz SINE_WAVE using REG0
-  Ad9833.reset();              // Ресет после включения питания
-  Ad9833.setSPIspeed(freqSPI); // Частота SPI для AD9833 установлена 4 MHz
-  Ad9833.setWave(AD9833_OFF);  // Turn OFF the output
-  delay(10);
-  Ad9833.setWave(AD9833_SINE);  // Turn ON and freq MODE SINE the output
-
-  // выставляем минимальную частоту для цикла определения максимального тока
-  Ad9833.setFrequency((float)FREQ_MIN, 0);
-
-  Serial.print("freq=");
-  Serial.println(FREQ_MIN);
-
-  // Настраиваем частоту под катушку
-  readAnalogAndSetFreqInSetup();
-
-  //Data_ina219 = ina219.shuntCurrent() * 1000;
-  Serial.println("Data_ina219 - end");
-  myDisplay();
-  delay(1000);
-  Serial.println("myDisplay - end");
-
-  // testSQL();
-
-  //we must initialize rotary encoder
-  rotaryEncoder.begin();
-  rotaryEncoder.setup(readEncoderISR);
-  //set boundaries and if values should cycle or not
-  //in this example we will set possible values between 0 and 1000;
-  bool circleValues = false;
-  rotaryEncoder.setBoundaries(0, 1000, circleValues); //minValue, maxValue, circleValues true|false (when max go to min and vice versa)
-
-  /*Rotary acceleration introduced 25.2.2021.
-     in case range to select is huge, for example - select a value between 0 and 1000 and we want 785
-     without accelerateion you need long time to get to that number
-     Using acceleration, faster you turn, faster will the value raise.
-     For fine tuning slow down.
-  */
-  //rotaryEncoder.disableAcceleration(); //acceleration is now enabled by default - disable if you dont need it
-  rotaryEncoder.setAcceleration(250); //or set the value - larger number = more accelearation; 0 or 1 means disabled acceleration
-
-  memTimers = availableTimers[0];  // выставляем 15 минут по умолчанию
-#ifdef DEBUG
-  testMCP4151();
-#endif
-  wiperValue = d_resis / 2;
-  //currentEncoderPos = wiperValue;
-  Potentiometer.writeValue(wiperValue);  // Set MCP4131 or MCP4151 to mid position
-
+  // Подключаемся к сети WIFI
+#ifdef WIFI
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
 
   //    WiFi.connect();
   while (WiFi.status() != WL_CONNECTED) {
+    Serial.print(".^.");
     delay(100);
+#endif
+    Serial.println(" Connected");
+
+    // Дисплей
+    tft.init();
+    tft.setRotation(1);
+    tft.fillScreen(TFT_BLACK);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    Serial.println("Start TEST Grafic Display");
+    testDisplay();
+    Serial.println("TEST Grafic Display is OK");
+
+    // сбрасываем потенциометр в 0%
+    resetPotenciometer();                          // после сброса устанавливаем значение по умолчанию
+    setResistance(currentPotenciometrPercent);     // ждем секунду после настройки потенциометра
+    delay(1000);
+
+    pinMode(ON_OFF_CASCADE_PIN, OUTPUT);
+    pinMode(PIN_ZUM, OUTPUT);
+    pinMode(CORRECT_PIN, INPUT);
+
+    digitalWrite(PIN_ZUM, LOW);
+    digitalWrite(ON_OFF_CASCADE_PIN, HIGH);
+
+    // analogReference(INTERNAL);
+
+    ina219.begin(0x40);                 // (44) i2c address 64=0x40 68=0х44 исправлять и в ina219.h одновременно
+    ina219.configure(0, 2, 12, 12, 7);  // 16S -8.51ms
+    ina219.calibrate(0.100, 0.32, 16, 3.2);
+
+    SPI.begin();
+    // This MUST be the first command after declaring the AD9833 object
+    Ad9833.begin();              // The loaded defaults are 1000 Hz SINE_WAVE using REG0
+    Ad9833.reset();              // Ресет после включения питания
+    Ad9833.setSPIspeed(freqSPI); // Частота SPI для AD9833 установлена 4 MHz
+    Ad9833.setWave(AD9833_OFF);  // Turn OFF the output
+    delay(10);
+    Ad9833.setWave(AD9833_SINE);  // Turn ON and freq MODE SINE the output
+
+    // выставляем минимальную частоту для цикла определения максимального тока
+    Ad9833.setFrequency((float)FREQ_MIN, 0);
+
+    Serial.print("freq=");
+    Serial.println(FREQ_MIN);
+
+    // Настраиваем частоту под катушку
+    readAnalogAndSetFreqInSetup();
+    Serial.println("Set Freq - end");
+
+    Data_ina219 = ina219.shuntCurrent() * 1000;
+    Serial.println("Data_ina219 - end");
+
+    myDisplay();
+    delay(1000);
+    Serial.println("myDisplay - end");
+
+    testSqlite3();
+
+    //we must initialize rotary encoder
+    rotaryEncoder.begin();
+    rotaryEncoder.setup(readEncoderISR);
+    //set boundaries and if values should cycle or not
+    //in this example we will set possible values between 0 and 1000;
+    bool circleValues = false;
+    rotaryEncoder.setBoundaries(0, 1000, circleValues); //minValue, maxValue, circleValues true|false (when max go to min and vice versa)
+
+    /*Rotary acceleration introduced 25.2.2021.
+       in case range to select is huge, for example - select a value between 0 and 1000 and we want 785
+       without accelerateion you need long time to get to that number
+       Using acceleration, faster you turn, faster will the value raise.
+       For fine tuning slow down.
+    */
+    //rotaryEncoder.disableAcceleration(); //acceleration is now enabled by default - disable if you dont need it
+    rotaryEncoder.setAcceleration(250); //or set the value - larger number = more accelearation; 0 or 1 means disabled acceleration
+
+    memTimers = availableTimers[0];  // выставляем 15 минут по умолчанию
+#ifdef DEBUG
+    testMCP4151();
+#endif
+    wiperValue = d_resis / 2;
+    //currentEncoderPos = wiperValue;
+    Potentiometer.writeValue(wiperValue);  // Set MCP4131 or MCP4151 to mid position
+
   }
 } /******************** E N D   S E T U P *******************/
 
