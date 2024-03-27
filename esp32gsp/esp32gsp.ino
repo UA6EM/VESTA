@@ -1,54 +1,27 @@
-/*
-    This creates two empty databases, populates values, and retrieves them back
-    from the SPIFFS file 
-*/
+// Генератор для катушки Мишина на контроллере ESP32
 
-// Добавим ремарку в скетч, проба на отслеживание в репозитории
-// проба на PUSH
-// проба на PUSH 2
+#define SECONDS(x) ((x)*1000UL)
+#define MINUTES(x) (SECONDS(x) * 60UL)
+#define HOURS(x) (MINUTES(x) * 60UL)
+#define DAYS(x) (HOURS(x) * 24UL)
+#define WEEKS(x) (DAYS(x) * 7UL)
+#define ON_OFF_CASCADE_PIN 32           // Для выключения выходного каскада
+#define PIN_ZUM 33
+#define CORRECT_PIN A3                 // Пин для внешней корректировки частоты.
 
+#if (defined(ESP32))
+#define WIFI             // Используем модуль вайфая
+#include <WiFi.h>
+//#include <HTTPClient.h>
+#include <WiFiClient.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sqlite3.h>
 #include <SPI.h>
 #include <FS.h>
 #include "SPIFFS.h"
-
 #include "AiEsp32RotaryEncoder.h"
 #include "Arduino.h"
-
-long FREQ_MIN = 200000;                // 200kHz
-
-//AD9833
-//#define AD9833_MISO 12
-#define AD9833_MOSI 13
-#define AD9833_SCK  14
-#define AD9833_CS   15
-
-//INA219
-#define I2C_SDA     21    // INA219 SDA
-#define I2C_SCK     22    // INA219 SCK
-
-//MCP4151
-#define  MCP41x1_SCK   18 // Define SCK pin for MCP4131 or MCP4151
-#define  MCP41x1_MOSI  23 // Define MOSI pin for MCP4131 or MCP4151
-#define  MCP41x1_MISO  19 // Define MISO pin for MCP4131 or MCP4151
-#define  MCP41x1_CS     5 // Define chipselect pin for MCP4131 or MCP4151
-
-#include <MCP4151.h>  // https://github.com/UA6EM/MCP4151/tree/mpgsp
-MCP4151 Potentiometer(MCP41x1_CS, MCP41x1_MOSI, MCP41x1_MISO, MCP41x1_SCK, 250000UL, 250000UL, SPI_MODE0);
-//MCP4151 Potentiometer(MCP41x1_CS);
-
-//--------------- Create an AD9833 object ----------------
-#include <AD9833.h>  // Пробуем новую по ссылкам в README закладке
-//AD9833 AD(10, 11, 13);     // SW SPI over the HW SPI pins (UNO);
-//AD9833 Ad9833(AD9833_CS);  // HW SPI Defaults to 25MHz internal reference frequency
-AD9833 Ad9833(AD9833_CS, AD9833_MOSI, AD9833_SCK); // SW SPI speed 250kHz
-
-
-#if (defined(ESP32))
-#define WIFI             // Используем модуль вайфая
-#include "WiFi.h"
 #include <Ticker.h>
 Ticker blinks;
 float blinkPeriod = 0.25;
@@ -86,7 +59,72 @@ float blinkPeriod = 0.25;
 #define MISO_pin  12
 #define SCK_pin   14
 #endif
+#else ECHO "Проект под микроконтроллер архитектуры ESP32"
 #endif
+
+// Глобальные переменные
+unsigned long /*uint32_t*/ interval = MINUTES(1);
+unsigned long /*uint32_t*/ oneMinute = MINUTES(1);
+unsigned long /*uint32_t*/ timers = MINUTES(5);  // время таймера 15, 30, 45 или 60 минут
+unsigned long /*uint32_t*/ memTimers = 0;        // здесь будем хранить установленное время таймера
+unsigned long /*uint32_t*/ oldmemTimers = 0;
+bool isWorkStarted = false;             // флаг запуска таймера
+
+unsigned long /*uint32_t*/ timMillis = 0;
+unsigned long /*uint32_t*/ oldMillis = 0;
+unsigned long /*uint32_t*/ mill;  // переменная под millis()
+unsigned long /*uint32_t*/ prevCorrectTime = 0;
+unsigned long /*uint32_t*/ prevReadAnalogTime = 0;  // для отсчета 10 секунд между подстройкой частоты
+unsigned long /*uint32_t*/ prevUpdateDataIna = 0;   // для перерыва между обновлениями данных ina
+unsigned int  wiperValue;         // variable to hold wipervalue for MCP4131 or MCP4151
+unsigned int Data_ina219 = 0;
+long /*int32_t*/ FREQ_MIN = 200000;        // 200kHz
+long /*int32_t*/ FREQ_MAX = 500000;        // 500kHz
+long /*int32_t*/ ifreq = FREQ_MIN;
+long /*int32_t*/ freq = FREQ_MIN;
+const unsigned long /*uint32_t*/ freqSPI = 250000;   // Частота только для HW SPI AD9833
+                                   // UNO SW SPI = 250kHz  
+const unsigned long /*uint32_t*/ availableTimers[] = { oneMinute * 15, oneMinute * 30, oneMinute * 45, oneMinute * 60 };
+const char /*uint8_t*/ maxTimers = 4;
+int timerPosition = 0;
+volatile int newEncoderPos;            // Новая позиция энкодера
+static int currentEncoderPos = 0;      // Текущая позиция энкодера
+volatile  int d_resis = 127;
+const char * ssid = "OpenWrt1";              // Название WIFI сети
+const char * password = "1234567890as";      // Пароль от WIFI сети
+
+
+//AD9833
+//#define AD9833_MISO 12
+#define AD9833_MOSI 13
+#define AD9833_SCK  14
+#define AD9833_CS   15
+
+//INA219
+#define I2C_SDA     21    // INA219 SDA
+#define I2C_SCK     22    // INA219 SCK
+
+//MCP4151
+#define  MCP41x1_SCK   18 // Define SCK pin for MCP4131 or MCP4151
+#define  MCP41x1_MOSI  23 // Define MOSI pin for MCP4131 or MCP4151
+#define  MCP41x1_MISO  19 // Define MISO pin for MCP4131 or MCP4151
+#define  MCP41x1_CS     5 // Define chipselect pin for MCP4131 or MCP4151
+
+#include <MCP4151.h>  // https://github.com/UA6EM/MCP4151/tree/mpgsp
+MCP4151 Potentiometer(MCP41x1_CS, MCP41x1_MOSI, MCP41x1_MISO, MCP41x1_SCK, 250000UL, 250000UL, SPI_MODE0);
+//MCP4151 Potentiometer(MCP41x1_CS);
+
+#include "INA219.h"
+INA219 ina219;
+
+//--------------- Create an AD9833 object ----------------
+#include <AD9833.h>  // Пробуем новую по ссылкам в README закладке
+//AD9833 AD(10, 11, 13);     // SW SPI over the HW SPI pins (UNO);
+//AD9833 Ad9833(AD9833_CS);  // HW SPI Defaults to 25MHz internal reference frequency
+AD9833 Ad9833(AD9833_CS, AD9833_MOSI, AD9833_SCK); // SW SPI speed 250kHz
+
+
+
 
 
 /*
@@ -105,21 +143,15 @@ VCC                    any microcontroler output pin - but set also ROTARY_ENCOD
                         in this example pin 25
 
 */
-#if defined(ESP8266)
-#define ROTARY_ENCODER_A_PIN D6
-#define ROTARY_ENCODER_B_PIN D5
-#define ROTARY_ENCODER_BUTTON_PIN D7
-#else
 #define ROTARY_ENCODER_A_PIN 34
 #define ROTARY_ENCODER_B_PIN 35
 #define ROTARY_ENCODER_BUTTON_PIN 36
-#endif
 #define ROTARY_ENCODER_VCC_PIN -1 /* 27 put -1 of Rotary encoder Vcc is connected directly to 3,3V; else you can use declared output pin for powering rotary encoder */
 
 //depending on your encoder - try 1,2 or 4 to get expected behaviour
-//#define ROTARY_ENCODER_STEPS 1
+#define ROTARY_ENCODER_STEPS 1
 //#define ROTARY_ENCODER_STEPS 2
-#define ROTARY_ENCODER_STEPS 4
+//#define ROTARY_ENCODER_STEPS 4
 
 //instead of changing here, rather change numbers above
 AiEsp32RotaryEncoder rotaryEncoder = AiEsp32RotaryEncoder(ROTARY_ENCODER_A_PIN, ROTARY_ENCODER_B_PIN, ROTARY_ENCODER_BUTTON_PIN, ROTARY_ENCODER_VCC_PIN, ROTARY_ENCODER_STEPS);
