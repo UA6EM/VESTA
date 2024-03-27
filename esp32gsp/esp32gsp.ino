@@ -121,8 +121,8 @@ int timerPosition = 0;
 volatile int newEncoderPos;            // Новая позиция энкодера
 static int currentEncoderPos = 0;      // Текущая позиция энкодера
 volatile  int d_resis = 127;
-const char * ssid = "OpenWrt1";              // Название WIFI сети
-const char * password = "1234567890as";      // Пароль от WIFI сети
+const char * ssid = "Open";              // Название WIFI сети
+const char * password = "12345";      // Пароль от WIFI сети
 
 
 #include <MCP4151.h>  // https://github.com/UA6EM/MCP4151/tree/mpgsp
