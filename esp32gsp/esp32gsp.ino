@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sqlite3.h>
+#include "testSql.h"
 #include <SPI.h>
 #include <FS.h>
 #include "SPIFFS.h"
@@ -120,17 +121,23 @@ const int /*uint8_t*/ maxTimers = 4;
 int timerPosition = 0;
 volatile int newEncoderPos;            // Новая позиция энкодера
 static int currentEncoderPos = 0;      // Текущая позиция энкодера
+
 volatile  int d_resis = 127;
-const char * ssid = "Open";              // Название WIFI сети
-const char * password = "12345";      // Пароль от WIFI сети
+const char * ssid = "Open7";              // Название WIFI сети
+const char * password = "1234567";      // Пароль от WIFI сети
+
 
 
 #include <MCP4151.h>  // https://github.com/UA6EM/MCP4151/tree/mpgsp
 MCP4151 Potentiometer(MCP41x1_CS, MCP41x1_MOSI, MCP41x1_MISO, MCP41x1_SCK, 250000UL, 250000UL, SPI_MODE0);
 //MCP4151 Potentiometer(MCP41x1_CS);
+// по умолчанию 50% потенциометра
+int currentPotenciometrPercent = 127;
+
 
 #include "INA219.h"
 INA219 ina219;
+
 
 //--------------- Create an AD9833 object ----------------
 #include <AD9833.h>  // Пробуем новую по ссылкам в README закладке
@@ -235,94 +242,247 @@ int db_exec(sqlite3 *db, const char *sql) {
 }
 
 
+// ФУНКЦИИ ОТ СТАРОГО СКЕТЧА БУДУТ ТУТ
+// функция выбора времени работы
+void setTimer() {
+  // если энкодер крутим по часовой
+  if (newEncoderPos - currentEncoderPos > 0) {
+    if (timerPosition == maxTimers - 1) {
+      timerPosition = 0;
+    } else {
+      timerPosition += 1;
+    }
+  } else if (newEncoderPos - currentEncoderPos < 0) {
+    // если энкодер крутим против часовой
+    if (timerPosition == 0) {
+      timerPosition = maxTimers - 1;
+    } else {
+      timerPosition -= 1;
+    }
+  }
+  memTimers = availableTimers[timerPosition];
+}
+
+void testMCP4151() {
+#ifdef MCP4151MOD
+  d_resis = 255;
+#else
+  d_resis = 127;
+#endif
+
+  Serial.println("START Test MCP4151");
+  for (int i = 0; i < d_resis; i++) {
+    Potentiometer.writeValue(i);
+    delay(100);
+    Serial.print("MCP4151 = ");
+    Serial.println(i);
+  }
+  for (int j = d_resis; j >= 1; --j) {
+    Potentiometer.writeValue(j);
+    delay(100);
+    Serial.print("MCP4151 = ");
+    Serial.println(j);
+  }
+  Serial.println("STOP Test MCP4151");
+}
+
+void resetPotenciometer() {
+  // Понижаем сопротивление до 0%:
+  wiperValue = 1;
+  Potentiometer.writeValue(wiperValue);  // Set MCP4151 to position 1
+}
+
+// Уровень percent - от 0 до 100% от максимума.
+void setResistance(int percent) {
+  // resetPotenciometer();
+  // for (int i = 0; i < percent; i++) {
+  wiperValue = percent;;
+  // }
+  Potentiometer.writeValue(wiperValue);  // Set MCP4151
+}
+
+void processPotenciometr() {
+  // если энкодер крутим по часовой
+  if (newEncoderPos - currentEncoderPos > 0) {
+    if (currentPotenciometrPercent >= d_resis) {
+      currentPotenciometrPercent = d_resis;
+      wiperValue = d_resis;
+    } else {
+      currentPotenciometrPercent += 1;
+      wiperValue += 1;
+    }
+  } else if (newEncoderPos - currentEncoderPos < 0) {
+    // если энкодер крутим против часовой
+    if (currentPotenciometrPercent <= 1) {
+      currentPotenciometrPercent = 1;
+      wiperValue = 1;
+    } else {
+      currentPotenciometrPercent -= 1;
+      wiperValue -= 1;
+    }
+  }
+  setResistance(currentPotenciometrPercent);
+  Potentiometer.writeValue(wiperValue);  // Set MCP4131 to mid position
+  Serial.print("wiperValue = ");
+  Serial.println(wiperValue);
+}
+
+/********* Таймер обратного отсчёта экспозиции **********/
+uint32_t setTimerLCD(uint32_t timlcd) {
+  if (millis() - timMillis >= 1000) {
+    timlcd = timlcd - 1000;
+    timMillis += 1000;
+  }
+  if (timlcd == 0) {
+    timlcd = oldmemTimers;
+    isWorkStarted = false;
+
+    digitalWrite(ON_OFF_CASCADE_PIN, LOW);
+    start_Buzzer();
+    delay(3000);
+    stop_Buzzer();
+  }
+  return timlcd;
+}
+
+/*******************ПИЩАЛКА ********************/
+void start_Buzzer() {
+  digitalWrite(PIN_ZUM, HIGH);
+}
+
+void stop_Buzzer() {
+  digitalWrite(PIN_ZUM, LOW);
+}
+
+// ******************* Обработка AD9833 ***********************
+void /*long*/ readAnalogAndSetFreqInSetup() {
+  int maxValue = 0;
+  long freqWithMaxI = FREQ_MIN;
+  long freqIncrease = 1000;                                   // 1kHz
+  int iterations = (FREQ_MAX - FREQ_MIN) / freqIncrease - 1;  // (500000 - 200000) / 1000 - 1 = 199
+
+  for (int j = 1; j <= iterations; j++) {
+    // читаем значение аналогового входа
+    int tempValue = analogRead(CORRECT_PIN);
+    // если значение тока больше предыдущего, запоминаем это значение и текущую частоту
+    if (tempValue > maxValue) {
+      maxValue = tempValue;
+      freqWithMaxI = freq;
+    }
+    // увеличиваем частоту для дальнейшего измерения тока
+    freq = freq + freqIncrease;
+    if (freq > FREQ_MAX) {
+      freq = FREQ_MAX;
+    }
+    // подаём частоту на генератор
+    Ad9833.setFrequency((float)freq, 0);
+    delay(20);
+  }
+  ifreq = freqWithMaxI;
+  // подаём частоту на генератор
+  Ad9833.setFrequency((float)ifreq, 0);
+  prevReadAnalogTime = millis();
+}
+
+/**** Подстройка частоты каждые 1-10 секунд относительно аналогового сигнала ***/
+void readAnalogAndSetFreqInLoop() {
+  uint32_t curr = millis();
+
+  // если прошло N секунд с момента последней проверки
+  if (curr - prevReadAnalogTime > 1000 * 5) {  //выбор времени изменения частоты.1-10 сек.
+    long availableDiff = 5000;                 // 1kHz-10kHz разница частот
+    long freqIncrease = 500;                   // 100Hz-1kHz шаг увеличения частоты при сканировании
+
+    int iterations = (availableDiff * 2) / freqIncrease - 1;  // (10000 * 2) / 1000 - 1 = 19
+
+    long minimalFreq = ifreq - availableDiff;
+    if (minimalFreq < FREQ_MIN) {
+      minimalFreq = FREQ_MIN;
+    }
+    // подаём на генератор минимальную частоту из диапазона +-10кГц
+    Ad9833.setFrequency((float)minimalFreq, 0);
+    delay(20);
+
+    int maxValue = 0;
+    long freqWithMaxI = minimalFreq;
+    freq = minimalFreq;
+
+    for (int j = 1; j <= iterations; j++) {
+      // читаем значение аналогового входа
+      int tempValue = analogRead(CORRECT_PIN);
+      // если значение тока больше предыдущего, запоминаем это значение и текущую частоту
+      if (tempValue > maxValue) {
+        maxValue = tempValue;
+        freqWithMaxI = freq;
+      }
+      // увеличиваем частоту для дальнейшего измерения тока
+      freq = freq + freqIncrease;
+      if (freq > FREQ_MAX) {
+        freq = FREQ_MAX;
+      }
+      // подаём частоту на генератор
+      Ad9833.setFrequency((float)freq, 0);
+      delay(10);
+    }
+    ifreq = freqWithMaxI;
+    Ad9833.setFrequency((float)ifreq, 0);
+    prevReadAnalogTime = millis();
+  }
+}
+
+// *** Вывод на дисплей ***
+void myDisplay() {
+}
+
+
 /*********************** S E T U P ***********************/
 void setup() {
   Serial.begin(115200);
-  sqlite3 *db1;
-  sqlite3 *db2;
-  int rc;
 
-  if (!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)) {
-    Serial.println("Failed to mount file system");
-    return;
-  }
 
-  // list SPIFFS contents
-  File root = SPIFFS.open("/");
-  if (!root) {
-    Serial.println("- failed to open directory");
-    return;
-  }
-  if (!root.isDirectory()) {
-    Serial.println(" - not a directory");
-    return;
-  }
-  File file = root.openNextFile();
-  while (file) {
-    if (file.isDirectory()) {
-      Serial.print("  DIR : ");
-      Serial.println(file.name());
-    } else {
-      Serial.print("  FILE: ");
-      Serial.print(file.name());
-      Serial.print("\tSIZE: ");
-      Serial.println(file.size());
-    }
-    file = root.openNextFile();
-  }
+  // сбрасываем потенциометр в 0%
+  resetPotenciometer();                          // после сброса устанавливаем значение по умолчанию
+  setResistance(currentPotenciometrPercent);     // ждем секунду после настройки потенциометра
+  delay(1000);
 
-  // remove existing file
-  SPIFFS.remove("/test1.db");
-  SPIFFS.remove("/test2.db");
+  pinMode(ON_OFF_CASCADE_PIN, OUTPUT);
+  pinMode(PIN_ZUM, OUTPUT);
+  pinMode(CORRECT_PIN, INPUT);
 
-  sqlite3_initialize();
+  digitalWrite(PIN_ZUM, LOW);
+  digitalWrite(ON_OFF_CASCADE_PIN, HIGH);
 
-  if (db_open("/spiffs/test1.db", &db1))
-    return;
-  if (db_open("/spiffs/test2.db", &db2))
-    return;
+  // analogReference(INTERNAL);
 
-  rc = db_exec(db1, "CREATE TABLE test1 (id INTEGER, content);");
-  if (rc != SQLITE_OK) {
-    sqlite3_close(db1);
-    sqlite3_close(db2);
-    return;
-  }
-  rc = db_exec(db2, "CREATE TABLE test2 (id INTEGER, content);");
-  if (rc != SQLITE_OK) {
-    sqlite3_close(db1);
-    sqlite3_close(db2);
-    return;
-  }
+  ina219.begin(0x40);                 // (44) i2c address 64=0x40 68=0х44 исправлять и в ina219.h одновременно
+  ina219.configure(0, 2, 12, 12, 7);  // 16S -8.51ms
+  ina219.calibrate(0.100, 0.32, 16, 3.2);
 
-  rc = db_exec(db1, "INSERT INTO test1 VALUES (1, 'Hello, World from test1');");
-  if (rc != SQLITE_OK) {
-    sqlite3_close(db1);
-    sqlite3_close(db2);
-    return;
-  }
-  rc = db_exec(db2, "INSERT INTO test2 VALUES (1, 'Hello, World from test2');");
-  if (rc != SQLITE_OK) {
-    sqlite3_close(db1);
-    sqlite3_close(db2);
-    return;
-  }
+  SPI.begin();
+  // This MUST be the first command after declaring the AD9833 object
+  Ad9833.begin();              // The loaded defaults are 1000 Hz SINE_WAVE using REG0
+  Ad9833.reset();              // Ресет после включения питания
+  Ad9833.setSPIspeed(freqSPI); // Частота SPI для AD9833 установлена 4 MHz
+  Ad9833.setWave(AD9833_OFF);  // Turn OFF the output
+  delay(10);
+  Ad9833.setWave(AD9833_SINE);  // Turn ON and freq MODE SINE the output
 
-  rc = db_exec(db1, "SELECT * FROM test1");
-  if (rc != SQLITE_OK) {
-    sqlite3_close(db1);
-    sqlite3_close(db2);
-    return;
-  }
-  rc = db_exec(db2, "SELECT * FROM test2");
-  if (rc != SQLITE_OK) {
-    sqlite3_close(db1);
-    sqlite3_close(db2);
-    return;
-  }
+  // выставляем минимальную частоту для цикла определения максимального тока
+  Ad9833.setFrequency((float)FREQ_MIN, 0);
 
-  sqlite3_close(db1);
-  sqlite3_close(db2);
+  Serial.print("freq=");
+  Serial.println(FREQ_MIN);
+
+  // Настраиваем частоту под катушку
+  readAnalogAndSetFreqInSetup();
+
+  //Data_ina219 = ina219.shuntCurrent() * 1000;
+  Serial.println("Data_ina219 - end");
+  myDisplay();
+  delay(1000);
+  Serial.println("myDisplay - end");
+
+  // testSQL();
 
   //we must initialize rotary encoder
   rotaryEncoder.begin();
@@ -341,18 +501,21 @@ void setup() {
   //rotaryEncoder.disableAcceleration(); //acceleration is now enabled by default - disable if you dont need it
   rotaryEncoder.setAcceleration(250); //or set the value - larger number = more accelearation; 0 or 1 means disabled acceleration
 
-  // This MUST be the first command after declaring the AD9833 object
-  Ad9833.begin();              // The loaded defaults are 1000 Hz SINE_WAVE using REG0
-  Ad9833.reset();              // Ресет после включения питания
-  const unsigned long freqSPI = 250000;
-  Ad9833.setSPIspeed(freqSPI); // Частота SPI для AD9833 установлена 4 MHz
-  Ad9833.setWave(AD9833_OFF);  // Turn OFF the output
-  delay(10);
-  Ad9833.setWave(AD9833_SINE);  // Turn ON and freq MODE SINE the output
+  memTimers = availableTimers[0];  // выставляем 15 минут по умолчанию
+#ifdef DEBUG
+  testMCP4151();
+#endif
+  wiperValue = d_resis / 2;
+  //currentEncoderPos = wiperValue;
+  Potentiometer.writeValue(wiperValue);  // Set MCP4131 or MCP4151 to mid position
 
-  // выставляем минимальную частоту для цикла определения максимального тока
-  Ad9833.setFrequency((float)FREQ_MIN, 0);
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
 
+  //    WiFi.connect();
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(100);
+  }
 } /******************** E N D   S E T U P *******************/
 
 
