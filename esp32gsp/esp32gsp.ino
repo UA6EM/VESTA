@@ -157,6 +157,8 @@ AiEsp32RotaryEncoder rotaryEncoder = AiEsp32RotaryEncoder(ROTARY_ENCODER_A_PIN, 
 
 void rotary_onButtonClick()
 {
+  Serial.print("maxTimers = ");
+  Serial.println(maxTimers);
   static unsigned long lastTimePressed = 0;
   //ignore multiple press in that time milliseconds
   if (millis() - lastTimePressed < 500)
