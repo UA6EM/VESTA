@@ -116,7 +116,7 @@ long /*int32_t*/ freq = FREQ_MIN;
 const unsigned long /*uint32_t*/ freqSPI = 250000;   // Частота только для HW SPI AD9833
 // UNO SW SPI = 250kHz
 const unsigned long /*uint32_t*/ availableTimers[] = { oneMinute * 15, oneMinute * 30, oneMinute * 45, oneMinute * 60 };
-const char /*uint8_t*/ maxTimers = 4;
+const int /*uint8_t*/ maxTimers = 4;
 int timerPosition = 0;
 volatile int newEncoderPos;            // Новая позиция энкодера
 static int currentEncoderPos = 0;      // Текущая позиция энкодера
