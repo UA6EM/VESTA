@@ -1,4 +1,6 @@
 // Генератор для катушки Мишина на контроллере ESP32
+// Partition Scheme: NO OTA (2MB APP, 2MB SPIFFS)
+
 
 #define SECONDS(x) ((x)*1000UL)
 #define MINUTES(x) (SECONDS(x) * 60UL)
@@ -7,10 +9,10 @@
 #define WEEKS(x) (DAYS(x) * 7UL)
 #define ON_OFF_CASCADE_PIN 32           // Для выключения выходного каскада
 #define PIN_ZUM 33
-#define CORRECT_PIN A3                 // Пин для внешней корректировки частоты.
+#define CORRECT_PIN A3                  // Пин для внешней корректировки частоты.
 
 #if (defined(ESP32))
-#define WIFI             // Используем модуль вайфая
+#define WIFI                            // Используем модуль вайфая
 #include <WiFi.h>
 //#include <HTTPClient.h>
 #include <WiFiClient.h>
@@ -59,8 +61,37 @@ float blinkPeriod = 0.25;
 #define MISO_pin  12
 #define SCK_pin   14
 #endif
-#else ECHO "Проект под микроконтроллер архитектуры ESP32"
+
+//AD9833
+//#define AD9833_MISO 12
+#define AD9833_MOSI 13
+#define AD9833_SCK  14
+#define AD9833_CS   15
+
+//INA219
+#define I2C_SDA     21    // INA219 SDA
+#define I2C_SCK     22    // INA219 SCK
+
+//MCP4151
+#define  MCP41x1_SCK   18 // Define SCK pin for MCP4131 or MCP4151
+#define  MCP41x1_MOSI  23 // Define MOSI pin for MCP4131 or MCP4151
+#define  MCP41x1_MISO  19 // Define MISO pin for MCP4131 or MCP4151
+#define  MCP41x1_CS     5 // Define chipselect pin for MCP4131 or MCP4151
+
+//ROTARY ENCODER
+#define ROTARY_ENCODER_A_PIN 34
+#define ROTARY_ENCODER_B_PIN 35
+#define ROTARY_ENCODER_BUTTON_PIN 36
+#define ROTARY_ENCODER_VCC_PIN -1 /* 27 put -1 of Rotary encoder Vcc is connected directly to 3,3V; else you can use declared output pin for powering rotary encoder */
+
+//depending on your encoder - try 1,2 or 4 to get expected behaviour
+#define ROTARY_ENCODER_STEPS 1
+//#define ROTARY_ENCODER_STEPS 2
+//#define ROTARY_ENCODER_STEPS 4
+
+#else ECHO "Проект под микроконтроллер архитектуры ESP32";
 #endif
+
 
 // Глобальные переменные
 unsigned long /*uint32_t*/ interval = MINUTES(1);
@@ -83,7 +114,7 @@ long /*int32_t*/ FREQ_MAX = 500000;        // 500kHz
 long /*int32_t*/ ifreq = FREQ_MIN;
 long /*int32_t*/ freq = FREQ_MIN;
 const unsigned long /*uint32_t*/ freqSPI = 250000;   // Частота только для HW SPI AD9833
-                                   // UNO SW SPI = 250kHz  
+// UNO SW SPI = 250kHz
 const unsigned long /*uint32_t*/ availableTimers[] = { oneMinute * 15, oneMinute * 30, oneMinute * 45, oneMinute * 60 };
 const char /*uint8_t*/ maxTimers = 4;
 int timerPosition = 0;
@@ -93,22 +124,6 @@ volatile  int d_resis = 127;
 const char * ssid = "OpenWrt1";              // Название WIFI сети
 const char * password = "1234567890as";      // Пароль от WIFI сети
 
-
-//AD9833
-//#define AD9833_MISO 12
-#define AD9833_MOSI 13
-#define AD9833_SCK  14
-#define AD9833_CS   15
-
-//INA219
-#define I2C_SDA     21    // INA219 SDA
-#define I2C_SCK     22    // INA219 SCK
-
-//MCP4151
-#define  MCP41x1_SCK   18 // Define SCK pin for MCP4131 or MCP4151
-#define  MCP41x1_MOSI  23 // Define MOSI pin for MCP4131 or MCP4151
-#define  MCP41x1_MISO  19 // Define MISO pin for MCP4131 or MCP4151
-#define  MCP41x1_CS     5 // Define chipselect pin for MCP4131 or MCP4151
 
 #include <MCP4151.h>  // https://github.com/UA6EM/MCP4151/tree/mpgsp
 MCP4151 Potentiometer(MCP41x1_CS, MCP41x1_MOSI, MCP41x1_MISO, MCP41x1_SCK, 250000UL, 250000UL, SPI_MODE0);
@@ -123,35 +138,19 @@ INA219 ina219;
 //AD9833 Ad9833(AD9833_CS);  // HW SPI Defaults to 25MHz internal reference frequency
 AD9833 Ad9833(AD9833_CS, AD9833_MOSI, AD9833_SCK); // SW SPI speed 250kHz
 
-
-
-
-
 /*
-connecting Rotary encoder
-
-Rotary encoder side    MICROCONTROLLER side  
--------------------    ---------------------------------------------------------------------
-CLK (A pin)            any microcontroler intput pin with interrupt -> in this example pin 32
-DT (B pin)             any microcontroler intput pin with interrupt -> in this example pin 21
-SW (button pin)        any microcontroler intput pin with interrupt -> in this example pin 25
-GND - to microcontroler GND
-VCC                    microcontroler VCC (then set ROTARY_ENCODER_VCC_PIN -1) 
-
+  connecting Rotary encoder
+  Rotary encoder side    MICROCONTROLLER side
+  -------------------    ---------------------------------------------------------------------
+  CLK (A pin)            any microcontroler intput pin with interrupt -> in this example pin 34
+  DT (B pin)             any microcontroler intput pin with interrupt -> in this example pin 35
+  SW (button pin)        any microcontroler intput pin with interrupt -> in this example pin 36
+  GND - to microcontroler GND
+  VCC                    microcontroler VCC (then set ROTARY_ENCODER_VCC_PIN -1)
 ***OR in case VCC pin is not free you can cheat and connect:***
-VCC                    any microcontroler output pin - but set also ROTARY_ENCODER_VCC_PIN 25 
-                        in this example pin 25
-
+  VCC                    any microcontroler output pin - but set also ROTARY_ENCODER_VCC_PIN 25
+                         in this example pin 25
 */
-#define ROTARY_ENCODER_A_PIN 34
-#define ROTARY_ENCODER_B_PIN 35
-#define ROTARY_ENCODER_BUTTON_PIN 36
-#define ROTARY_ENCODER_VCC_PIN -1 /* 27 put -1 of Rotary encoder Vcc is connected directly to 3,3V; else you can use declared output pin for powering rotary encoder */
-
-//depending on your encoder - try 1,2 or 4 to get expected behaviour
-#define ROTARY_ENCODER_STEPS 1
-//#define ROTARY_ENCODER_STEPS 2
-//#define ROTARY_ENCODER_STEPS 4
 
 //instead of changing here, rather change numbers above
 AiEsp32RotaryEncoder rotaryEncoder = AiEsp32RotaryEncoder(ROTARY_ENCODER_A_PIN, ROTARY_ENCODER_B_PIN, ROTARY_ENCODER_BUTTON_PIN, ROTARY_ENCODER_VCC_PIN, ROTARY_ENCODER_STEPS);
@@ -189,6 +188,7 @@ void IRAM_ATTR readEncoderISR()
   rotaryEncoder.readEncoder_ISR();
 }
 
+
 /* You only need to format SPIFFS the first time you run a
    test or else use the SPIFFS plugin to create a partition
    https://github.com/me-no-dev/arduino-esp32fs-plugin */
@@ -196,130 +196,131 @@ void IRAM_ATTR readEncoderISR()
 
 const char* data = "Callback function called";
 static int callback(void *data, int argc, char **argv, char **azColName) {
-   int i;
-   Serial.printf("%s: ", (const char*)data);
-   for (i = 0; i<argc; i++){
-       Serial.printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
-   }
-   Serial.printf("\n");
-   return 0;
+  int i;
+  Serial.printf("%s: ", (const char*)data);
+  for (i = 0; i < argc; i++) {
+    Serial.printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+  }
+  Serial.printf("\n");
+  return 0;
 }
 
 int db_open(const char *filename, sqlite3 **db) {
-   int rc = sqlite3_open(filename, db);
-   if (rc) {
-       Serial.printf("Can't open database: %s\n", sqlite3_errmsg(*db));
-       return rc;
-   } else {
-       Serial.printf("Opened database successfully\n");
-   }
-   return rc;
+  int rc = sqlite3_open(filename, db);
+  if (rc) {
+    Serial.printf("Can't open database: %s\n", sqlite3_errmsg(*db));
+    return rc;
+  } else {
+    Serial.printf("Opened database successfully\n");
+  }
+  return rc;
 }
 
 char *zErrMsg = 0;
 int db_exec(sqlite3 *db, const char *sql) {
-   Serial.println(sql);
-   long start = micros();
-   int rc = sqlite3_exec(db, sql, callback, (void*)data, &zErrMsg);
-   if (rc != SQLITE_OK) {
-       Serial.printf("SQL error: %s\n", zErrMsg);
-       sqlite3_free(zErrMsg);
-   } else {
-       Serial.printf("Operation done successfully\n");
-   }
-   Serial.print(F("Time taken:"));
-   Serial.println(micros()-start);
-   return rc;
+  Serial.println(sql);
+  long start = micros();
+  int rc = sqlite3_exec(db, sql, callback, (void*)data, &zErrMsg);
+  if (rc != SQLITE_OK) {
+    Serial.printf("SQL error: %s\n", zErrMsg);
+    sqlite3_free(zErrMsg);
+  } else {
+    Serial.printf("Operation done successfully\n");
+  }
+  Serial.print(F("Time taken:"));
+  Serial.println(micros() - start);
+  return rc;
 }
 
+
+/*********************** S E T U P ***********************/
 void setup() {
+  Serial.begin(115200);
+  sqlite3 *db1;
+  sqlite3 *db2;
+  int rc;
 
-   Serial.begin(115200);
-   sqlite3 *db1;
-   sqlite3 *db2;
-   int rc;
+  if (!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)) {
+    Serial.println("Failed to mount file system");
+    return;
+  }
 
-   if (!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)) {
-       Serial.println("Failed to mount file system");
-       return;
-   }
+  // list SPIFFS contents
+  File root = SPIFFS.open("/");
+  if (!root) {
+    Serial.println("- failed to open directory");
+    return;
+  }
+  if (!root.isDirectory()) {
+    Serial.println(" - not a directory");
+    return;
+  }
+  File file = root.openNextFile();
+  while (file) {
+    if (file.isDirectory()) {
+      Serial.print("  DIR : ");
+      Serial.println(file.name());
+    } else {
+      Serial.print("  FILE: ");
+      Serial.print(file.name());
+      Serial.print("\tSIZE: ");
+      Serial.println(file.size());
+    }
+    file = root.openNextFile();
+  }
 
-   // list SPIFFS contents
-   File root = SPIFFS.open("/");
-   if (!root) {
-       Serial.println("- failed to open directory");
-       return;
-   }
-   if (!root.isDirectory()) {
-       Serial.println(" - not a directory");
-       return;
-   }
-   File file = root.openNextFile();
-   while (file) {
-       if (file.isDirectory()) {
-           Serial.print("  DIR : ");
-           Serial.println(file.name());
-       } else {
-           Serial.print("  FILE: ");
-           Serial.print(file.name());
-           Serial.print("\tSIZE: ");
-           Serial.println(file.size());
-       }
-       file = root.openNextFile();
-   }
+  // remove existing file
+  SPIFFS.remove("/test1.db");
+  SPIFFS.remove("/test2.db");
 
-   // remove existing file
-   SPIFFS.remove("/test1.db");
-   SPIFFS.remove("/test2.db");
+  sqlite3_initialize();
 
-   sqlite3_initialize();
+  if (db_open("/spiffs/test1.db", &db1))
+    return;
+  if (db_open("/spiffs/test2.db", &db2))
+    return;
 
-   if (db_open("/spiffs/test1.db", &db1))
-       return;
-   if (db_open("/spiffs/test2.db", &db2))
-       return;
+  rc = db_exec(db1, "CREATE TABLE test1 (id INTEGER, content);");
+  if (rc != SQLITE_OK) {
+    sqlite3_close(db1);
+    sqlite3_close(db2);
+    return;
+  }
+  rc = db_exec(db2, "CREATE TABLE test2 (id INTEGER, content);");
+  if (rc != SQLITE_OK) {
+    sqlite3_close(db1);
+    sqlite3_close(db2);
+    return;
+  }
 
-   rc = db_exec(db1, "CREATE TABLE test1 (id INTEGER, content);");
-   if (rc != SQLITE_OK) {
-       sqlite3_close(db1);
-       sqlite3_close(db2);
-       return;
-   }
-   rc = db_exec(db2, "CREATE TABLE test2 (id INTEGER, content);");
-   if (rc != SQLITE_OK) {
-       sqlite3_close(db1);
-       sqlite3_close(db2);
-       return;
-   }
+  rc = db_exec(db1, "INSERT INTO test1 VALUES (1, 'Hello, World from test1');");
+  if (rc != SQLITE_OK) {
+    sqlite3_close(db1);
+    sqlite3_close(db2);
+    return;
+  }
+  rc = db_exec(db2, "INSERT INTO test2 VALUES (1, 'Hello, World from test2');");
+  if (rc != SQLITE_OK) {
+    sqlite3_close(db1);
+    sqlite3_close(db2);
+    return;
+  }
 
-   rc = db_exec(db1, "INSERT INTO test1 VALUES (1, 'Hello, World from test1');");
-   if (rc != SQLITE_OK) {
-       sqlite3_close(db1);
-       sqlite3_close(db2);
-       return;
-   }
-   rc = db_exec(db2, "INSERT INTO test2 VALUES (1, 'Hello, World from test2');");
-   if (rc != SQLITE_OK) {
-       sqlite3_close(db1);
-       sqlite3_close(db2);
-       return;
-   }
+  rc = db_exec(db1, "SELECT * FROM test1");
+  if (rc != SQLITE_OK) {
+    sqlite3_close(db1);
+    sqlite3_close(db2);
+    return;
+  }
+  rc = db_exec(db2, "SELECT * FROM test2");
+  if (rc != SQLITE_OK) {
+    sqlite3_close(db1);
+    sqlite3_close(db2);
+    return;
+  }
 
-   rc = db_exec(db1, "SELECT * FROM test1");
-   if (rc != SQLITE_OK) {
-       sqlite3_close(db1);
-       sqlite3_close(db2);
-       return;
-   }
-   rc = db_exec(db2, "SELECT * FROM test2");
-   if (rc != SQLITE_OK) {
-       sqlite3_close(db1);
-       sqlite3_close(db2);
-       return;
-   }
-
-   sqlite3_close(db1);
-   sqlite3_close(db2);
+  sqlite3_close(db1);
+  sqlite3_close(db2);
 
   //we must initialize rotary encoder
   rotaryEncoder.begin();
@@ -330,18 +331,18 @@ void setup() {
   rotaryEncoder.setBoundaries(0, 1000, circleValues); //minValue, maxValue, circleValues true|false (when max go to min and vice versa)
 
   /*Rotary acceleration introduced 25.2.2021.
-   * in case range to select is huge, for example - select a value between 0 and 1000 and we want 785
-   * without accelerateion you need long time to get to that number
-   * Using acceleration, faster you turn, faster will the value raise.
-   * For fine tuning slow down.
-   */
+     in case range to select is huge, for example - select a value between 0 and 1000 and we want 785
+     without accelerateion you need long time to get to that number
+     Using acceleration, faster you turn, faster will the value raise.
+     For fine tuning slow down.
+  */
   //rotaryEncoder.disableAcceleration(); //acceleration is now enabled by default - disable if you dont need it
   rotaryEncoder.setAcceleration(250); //or set the value - larger number = more accelearation; 0 or 1 means disabled acceleration
 
   // This MUST be the first command after declaring the AD9833 object
   Ad9833.begin();              // The loaded defaults are 1000 Hz SINE_WAVE using REG0
   Ad9833.reset();              // Ресет после включения питания
-  const unsigned long freqSPI = 250000; 
+  const unsigned long freqSPI = 250000;
   Ad9833.setSPIspeed(freqSPI); // Частота SPI для AD9833 установлена 4 MHz
   Ad9833.setWave(AD9833_OFF);  // Turn OFF the output
   delay(10);
@@ -349,10 +350,14 @@ void setup() {
 
   // выставляем минимальную частоту для цикла определения максимального тока
   Ad9833.setFrequency((float)FREQ_MIN, 0);
-}
 
+} /******************** E N D   S E T U P *******************/
+
+
+/************************ L O O P ***************************/
 void loop() {
-    //in loop call your custom function which will process rotary encoder values
+  //in loop call your custom function which will process rotary encoder values
   rotary_loop();
   delay(50); //or do whatever you need to do...
-}
+
+}/******************** E N D   L O O P *******************/
