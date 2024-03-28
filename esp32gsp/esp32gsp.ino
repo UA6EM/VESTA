@@ -1,6 +1,7 @@
 // Генератор для катушки Мишина на контроллере ESP32
 // Partition Scheme: NO OTA (2MB APP, 2MB SPIFFS)
 
+
 #define SECONDS(x) ((x)*1000UL)
 #define MINUTES(x) (SECONDS(x) * 60UL)
 #define HOURS(x) (MINUTES(x) * 60UL)
@@ -11,10 +12,12 @@
 #define CORRECT_PIN A3                  // Пин для внешней корректировки частоты.
 
 #if (defined(ESP32))
-#define WIFI                            // Используем модуль вайфая
+#define WIFI                    // Используем модуль вайфая
+#ifdef WIFI
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <WiFiClient.h>
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -638,6 +641,7 @@ void setup() {
     delay(100);
 #endif
     Serial.println(" Connected");
+    Serial.println();
 
     // Дисплей
     tft.init();
@@ -645,8 +649,10 @@ void setup() {
     tft.fillScreen(TFT_BLACK);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
     Serial.println("Start TEST Grafic Display");
+    Serial.println();
     testDisplay();
     Serial.println("TEST Grafic Display is OK");
+    Serial.println();
 
     // сбрасываем потенциометр в 0%
     resetPotenciometer();                          // после сброса устанавливаем значение по умолчанию
@@ -680,17 +686,21 @@ void setup() {
 
     Serial.print("freq=");
     Serial.println(FREQ_MIN);
+    Serial.println();
 
     // Настраиваем частоту под катушку
     readAnalogAndSetFreqInSetup();
     Serial.println("Set Freq - end");
+    Serial.println();
 
     Data_ina219 = ina219.shuntCurrent() * 1000;
     Serial.println("Data_ina219 - end");
+    Serial.println();
 
     myDisplay();
     delay(1000);
     Serial.println("myDisplay - end");
+    Serial.println();
 
     testSqlite3();
 
