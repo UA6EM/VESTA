@@ -2,5 +2,5 @@
 #include <Arduino.h>
 #include "config.h"
 
-const char * ssid = "Open123";             // Название WIFI сети
-const char * password = "12345678";      // Пароль от WIFI сети
+const char * ssid = "Open";             // Название WIFI сети
+const char * password = "1234567";      // Пароль от WIFI сети
