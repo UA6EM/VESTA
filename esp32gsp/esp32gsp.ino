@@ -464,6 +464,7 @@ void testSqlite3() {
     return;
   }
   File file = root.openNextFile();
+  yield();
   while (file) {
     if (file.isDirectory()) {
       Serial.print("  DIR : ");
@@ -481,6 +482,7 @@ void testSqlite3() {
   SPIFFS.remove("/test1.db");
   SPIFFS.remove("/test2.db");
 
+  yield();
   sqlite3_initialize();
 
   if (db_open("/spiffs/test1.db", &db1))
@@ -513,7 +515,7 @@ void testSqlite3() {
     sqlite3_close(db2);
     return;
   }
-
+  yield();
   rc = db_exec(db1, "SELECT * FROM test1");
   if (rc != SQLITE_OK) {
     sqlite3_close(db1);
@@ -526,7 +528,7 @@ void testSqlite3() {
     sqlite3_close(db2);
     return;
   }
-
+  yield();
   sqlite3_close(db1);
   sqlite3_close(db2);
 }
@@ -547,6 +549,7 @@ void testDisplay() {
   xpos += tft.drawFloat(drawTime / 2890.0, 3, xpos, 180, 4);
   tft.drawString(" ms per character", xpos, 180, 4);
   if (drawTime < 100) tft.drawString("Font 1 not loaded!", 50, 210, 4);
+  yield();
   delay(4000);
   tft.fillScreen(TFT_BLACK);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
@@ -702,7 +705,7 @@ void setup() {
     Serial.println("myDisplay - end");
     Serial.println();
 
-    testSqlite3();
+   // testSqlite3();
 
     //we must initialize rotary encoder
     rotaryEncoder.begin();
