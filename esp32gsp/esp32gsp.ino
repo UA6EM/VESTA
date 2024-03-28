@@ -1,6 +1,8 @@
 // Генератор для катушки Мишина на контроллере ESP32
 // Partition Scheme: NO OTA (2MB APP, 2MB SPIFFS)
 
+#define WIFI                    // Используем модуль вайфая
+#define DEBUG                   // Включить отладку
 
 #define SECONDS(x) ((x)*1000UL)
 #define MINUTES(x) (SECONDS(x) * 60UL)
@@ -12,7 +14,6 @@
 #define CORRECT_PIN A3                  // Пин для внешней корректировки частоты.
 
 #if (defined(ESP32))
-#define WIFI                    // Используем модуль вайфая
 #ifdef WIFI
 #include <WiFi.h>
 #include <HTTPClient.h>
@@ -96,7 +97,7 @@ float blinkPeriod = 0.25;
 //#define ROTARY_ENCODER_STEPS 2
 //#define ROTARY_ENCODER_STEPS 4
 
-#else ECHO "Проект под микроконтроллер архитектуры ESP32";
+//#else ECHO "Проект под микроконтроллер архитектуры ESP32";
 #endif
 
 
@@ -438,6 +439,7 @@ void readAnalogAndSetFreqInLoop() {
 
 // *** Вывод на дисплей ***
 void myDisplay() {
+  yield();
   Serial.println("TFT Dispay is OK");
 }
 
@@ -463,6 +465,7 @@ void testSqlite3() {
     Serial.println(" - not a directory");
     return;
   }
+  yield();
   File file = root.openNextFile();
   yield();
   while (file) {
@@ -642,97 +645,97 @@ void setup() {
   while (WiFi.status() != WL_CONNECTED) {
     Serial.print(".^.");
     delay(100);
-#endif
-    Serial.println(" Connected");
-    Serial.println();
-
-    // Дисплей
-    tft.init();
-    tft.setRotation(1);
-    tft.fillScreen(TFT_BLACK);
-    tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    Serial.println("Start TEST Grafic Display");
-    Serial.println();
-    testDisplay();
-    Serial.println("TEST Grafic Display is OK");
-    Serial.println();
-
-    // сбрасываем потенциометр в 0%
-    resetPotenciometer();                          // после сброса устанавливаем значение по умолчанию
-    setResistance(currentPotenciometrPercent);     // ждем секунду после настройки потенциометра
-    delay(1000);
-
-    pinMode(ON_OFF_CASCADE_PIN, OUTPUT);
-    pinMode(PIN_ZUM, OUTPUT);
-    pinMode(CORRECT_PIN, INPUT);
-
-    digitalWrite(PIN_ZUM, LOW);
-    digitalWrite(ON_OFF_CASCADE_PIN, HIGH);
-
-    // analogReference(INTERNAL);
-
-    ina219.begin(0x40);                 // (44) i2c address 64=0x40 68=0х44 исправлять и в ina219.h одновременно
-    ina219.configure(0, 2, 12, 12, 7);  // 16S -8.51ms
-    ina219.calibrate(0.100, 0.32, 16, 3.2);
-
-    SPI.begin();
-    // This MUST be the first command after declaring the AD9833 object
-    Ad9833.begin();              // The loaded defaults are 1000 Hz SINE_WAVE using REG0
-    Ad9833.reset();              // Ресет после включения питания
-    Ad9833.setSPIspeed(freqSPI); // Частота SPI для AD9833 установлена 4 MHz
-    Ad9833.setWave(AD9833_OFF);  // Turn OFF the output
-    delay(10);
-    Ad9833.setWave(AD9833_SINE);  // Turn ON and freq MODE SINE the output
-
-    // выставляем минимальную частоту для цикла определения максимального тока
-    Ad9833.setFrequency((float)FREQ_MIN, 0);
-
-    Serial.print("freq=");
-    Serial.println(FREQ_MIN);
-    Serial.println();
-
-    // Настраиваем частоту под катушку
-    readAnalogAndSetFreqInSetup();
-    Serial.println("Set Freq - end");
-    Serial.println();
-
-    Data_ina219 = ina219.shuntCurrent() * 1000;
-    Serial.println("Data_ina219 - end");
-    Serial.println();
-
-    myDisplay();
-    delay(1000);
-    Serial.println("myDisplay - end");
-    Serial.println();
-
-   // testSqlite3();
-
-    //we must initialize rotary encoder
-    rotaryEncoder.begin();
-    rotaryEncoder.setup(readEncoderISR);
-    //set boundaries and if values should cycle or not
-    //in this example we will set possible values between 0 and 1000;
-    bool circleValues = false;
-    rotaryEncoder.setBoundaries(0, 1000, circleValues); //minValue, maxValue, circleValues true|false (when max go to min and vice versa)
-
-    /*Rotary acceleration introduced 25.2.2021.
-       in case range to select is huge, for example - select a value between 0 and 1000 and we want 785
-       without accelerateion you need long time to get to that number
-       Using acceleration, faster you turn, faster will the value raise.
-       For fine tuning slow down.
-    */
-    //rotaryEncoder.disableAcceleration(); //acceleration is now enabled by default - disable if you dont need it
-    rotaryEncoder.setAcceleration(250); //or set the value - larger number = more accelearation; 0 or 1 means disabled acceleration
-
-    memTimers = availableTimers[0];  // выставляем 15 минут по умолчанию
-#ifdef DEBUG
-    testMCP4151();
-#endif
-    wiperValue = d_resis / 2;
-    //currentEncoderPos = wiperValue;
-    Potentiometer.writeValue(wiperValue);  // Set MCP4131 or MCP4151 to mid position
-
   }
+#endif
+  Serial.println(" Connected");
+  Serial.println();
+
+  // Дисплей
+  tft.init();
+  tft.setRotation(1);
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  Serial.println("Start TEST Grafic Display");
+  Serial.println();
+  testDisplay();
+  Serial.println("TEST Grafic Display is OK");
+  Serial.println();
+
+  // сбрасываем потенциометр в 0%
+  resetPotenciometer();                          // после сброса устанавливаем значение по умолчанию
+  setResistance(currentPotenciometrPercent);     // ждем секунду после настройки потенциометра
+  delay(1000);
+
+  pinMode(ON_OFF_CASCADE_PIN, OUTPUT);
+  pinMode(PIN_ZUM, OUTPUT);
+  pinMode(CORRECT_PIN, INPUT);
+
+  digitalWrite(PIN_ZUM, LOW);
+  digitalWrite(ON_OFF_CASCADE_PIN, HIGH);
+
+  // analogReference(INTERNAL);
+
+  ina219.begin(0x40);                 // (44) i2c address 64=0x40 68=0х44 исправлять и в ina219.h одновременно
+  ina219.configure(0, 2, 12, 12, 7);  // 16S -8.51ms
+  ina219.calibrate(0.100, 0.32, 16, 3.2);
+
+  SPI.begin();
+  // This MUST be the first command after declaring the AD9833 object
+  Ad9833.begin();              // The loaded defaults are 1000 Hz SINE_WAVE using REG0
+  Ad9833.reset();              // Ресет после включения питания
+  Ad9833.setSPIspeed(freqSPI); // Частота SPI для AD9833 установлена 4 MHz
+  Ad9833.setWave(AD9833_OFF);  // Turn OFF the output
+  delay(10);
+  Ad9833.setWave(AD9833_SINE);  // Turn ON and freq MODE SINE the output
+
+  // выставляем минимальную частоту для цикла определения максимального тока
+  Ad9833.setFrequency((float)FREQ_MIN, 0);
+
+  Serial.print("freq=");
+  Serial.println(FREQ_MIN);
+  Serial.println();
+
+  // Настраиваем частоту под катушку
+  readAnalogAndSetFreqInSetup();
+  Serial.println("Set Freq - end");
+  Serial.println();
+
+  Data_ina219 = ina219.shuntCurrent() * 1000;
+  Serial.println("Data_ina219 - end");
+  Serial.println();
+
+  myDisplay();
+  delay(1000);
+  Serial.println("myDisplay - end");
+  Serial.println();
+
+  testSqlite3();
+
+  //we must initialize rotary encoder
+  rotaryEncoder.begin();
+  rotaryEncoder.setup(readEncoderISR);
+  //set boundaries and if values should cycle or not
+  //in this example we will set possible values between 0 and 1000;
+  bool circleValues = false;
+  rotaryEncoder.setBoundaries(0, 1000, circleValues); //minValue, maxValue, circleValues true|false (when max go to min and vice versa)
+
+  /*Rotary acceleration introduced 25.2.2021.
+     in case range to select is huge, for example - select a value between 0 and 1000 and we want 785
+     without accelerateion you need long time to get to that number
+     Using acceleration, faster you turn, faster will the value raise.
+     For fine tuning slow down.
+  */
+  //rotaryEncoder.disableAcceleration(); //acceleration is now enabled by default - disable if you dont need it
+  rotaryEncoder.setAcceleration(250); //or set the value - larger number = more accelearation; 0 or 1 means disabled acceleration
+
+  memTimers = availableTimers[0];  // выставляем 15 минут по умолчанию
+#ifdef DEBUG
+  testMCP4151();
+#endif
+  wiperValue = d_resis / 2;
+  //currentEncoderPos = wiperValue;
+  Potentiometer.writeValue(wiperValue);  // Set MCP4131 or MCP4151 to mid position
+
 } /******************** E N D   S E T U P *******************/
 
 
