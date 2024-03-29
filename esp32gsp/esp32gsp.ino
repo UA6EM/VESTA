@@ -1,22 +1,24 @@
 // Генератор для катушки Мишина на контроллере ESP32
 // Partition Scheme: NO OTA (2MB APP, 2MB SPIFFS)
+// При компиляции, в настройках IDE оключить все уведомления 
+// иначе ввылетит по ошибке на sqlite3
 
-#define WIFI                    // Используем модуль вайфая
-#define DEBUG                   // Включить отладку
+#define WIFI   // Используем модуль вайфая
+#define DEBUG  // Включить отладку
 
 #define SECONDS(x) ((x)*1000UL)
 #define MINUTES(x) (SECONDS(x) * 60UL)
 #define HOURS(x) (MINUTES(x) * 60UL)
 #define DAYS(x) (HOURS(x) * 24UL)
 #define WEEKS(x) (DAYS(x) * 7UL)
-#define ON_OFF_CASCADE_PIN 32           // Для выключения выходного каскада
+#define ON_OFF_CASCADE_PIN 32  // Для выключения выходного каскада
 #define PIN_ZUM 33
-#define CORRECT_PIN A3                  // Пин для внешней корректировки частоты.
+#define CORRECT_PIN A3  // Пин для внешней корректировки частоты.
 
 #if (defined(ESP32))
 #ifdef WIFI
 #include <WiFi.h>
-#include <HTTPClient.h>
+//#include <HTTPClient.h>
 #include <WiFiClient.h>
 #endif
 
@@ -33,58 +35,58 @@
 #include "config.h"
 
 #include <Ticker.h>
-Ticker blinks;
-float blinkPeriod = 0.25;
+Ticker my_encoder;
+float encPeriod = 0.25;
 
 // ***   ***   ***           Для ESP32 подключаем SPI так:
-#define HSPIs             // Дисплей и AD9833 на HSPI, MCP4151 на VSPI
-#if defined(HSPIs)        // для ESP32 HSPI
-#define TFT_CS        15  // GP15 - CS
-#define TFT_RST       16  // GP16 - RESET
-#define TFT_DC        17  // GP17 - 
-#define TFT_MISO      12  // GP12 - MISO (MISO, RX)
-#define TFT_MOSI      13  // GP13 - SDA  (MOSI, TX)
-#define TFT_SCLK      14  // GP14 - SCK
+#define HSPIs        // Дисплей и AD9833 на HSPI, MCP4151 на VSPI
+#if defined(HSPIs)   // для ESP32 HSPI
+#define TFT_CS 15    // GP15 - CS
+#define TFT_RST 16   // GP16 - RESET
+#define TFT_DC 17    // GP17 -
+#define TFT_MISO 12  // GP12 - MISO (MISO, RX)
+#define TFT_MOSI 13  // GP13 - SDA  (MOSI, TX)
+#define TFT_SCLK 14  // GP14 - SCK
 
-#else                     // для ESP32 VSPI (SPI0)
-#define TFT_CS        5   // GP5  - CS
-#define TFT_RST       20  // GP20 - RESET
-#define TFT_DC        21  // GP21 - 
-#define TFT_MISO      19  // GP19 - MISO (MISO, RX)
-#define TFT_MOSI      23  // GP23 - SDA  (MOSI, TX)
-#define TFT_SCLK      18  // GP18 - SCK
+#else                // для ESP32 VSPI (SPI0)
+#define TFT_CS 5     // GP5  - CS
+#define TFT_RST 20   // GP20 - RESET
+#define TFT_DC 21    // GP21 -
+#define TFT_MISO 19  // GP19 - MISO (MISO, RX)
+#define TFT_MOSI 23  // GP23 - SDA  (MOSI, TX)
+#define TFT_SCLK 18  // GP18 - SCK
 #endif
 
 // SPI definitions and macros то MCP4151
-#if defined(HSPIs) // MCP4151 на VSPI если монитор на HSPI и наоборот ;-)
+#if defined(HSPIs)  // MCP4151 на VSPI если монитор на HSPI и наоборот ;-)
 
-#define CS_pin    5
-#define MOSI_pin  23
-#define MISO_pin  19
-#define SCK_pin   18
-#else // HSPIs
+#define CS_pin 5
+#define MOSI_pin 23
+#define MISO_pin 19
+#define SCK_pin 18
+#else  // HSPIs
 
-#define CS_pin    15
-#define MOSI_pin  13
-#define MISO_pin  12
-#define SCK_pin   14
+#define CS_pin 15
+#define MOSI_pin 13
+#define MISO_pin 12
+#define SCK_pin 14
 #endif
 
 //AD9833
 //#define AD9833_MISO 12
 #define AD9833_MOSI 13
-#define AD9833_SCK  14
-#define AD9833_CS   15
+#define AD9833_SCK 14
+#define AD9833_CS 15
 
 //INA219
-#define I2C_SDA     21    // INA219 SDA
-#define I2C_SCK     22    // INA219 SCK
+#define I2C_SDA 21  // INA219 SDA
+#define I2C_SCK 22  // INA219 SCK
 
 //MCP4151
-#define  MCP41x1_SCK   18 // Define SCK pin for MCP4131 or MCP4151
-#define  MCP41x1_MOSI  23 // Define MOSI pin for MCP4131 or MCP4151
-#define  MCP41x1_MISO  19 // Define MISO pin for MCP4131 or MCP4151
-#define  MCP41x1_CS     5 // Define chipselect pin for MCP4131 or MCP4151
+#define MCP41x1_SCK 18   // Define SCK pin for MCP4131 or MCP4151
+#define MCP41x1_MOSI 23  // Define MOSI pin for MCP4131 or MCP4151
+#define MCP41x1_MISO 19  // Define MISO pin for MCP4131 or MCP4151
+#define MCP41x1_CS 5     // Define chipselect pin for MCP4131 or MCP4151
 
 //ROTARY ENCODER
 #define ROTARY_ENCODER_A_PIN 34
@@ -97,7 +99,7 @@ float blinkPeriod = 0.25;
 //#define ROTARY_ENCODER_STEPS 2
 //#define ROTARY_ENCODER_STEPS 4
 
-//#else ECHO "Проект под микроконтроллер архитектуры ESP32";
+#else ECHO "Проект под микроконтроллер архитектуры ESP32";
 #endif
 
 
@@ -107,7 +109,7 @@ unsigned long /*uint32_t*/ oneMinute = MINUTES(1);
 unsigned long /*uint32_t*/ timers = MINUTES(5);  // время таймера 15, 30, 45 или 60 минут
 unsigned long /*uint32_t*/ memTimers = 0;        // здесь будем хранить установленное время таймера
 unsigned long /*uint32_t*/ oldmemTimers = 0;
-bool isWorkStarted = false;             // флаг запуска таймера
+bool isWorkStarted = false;  // флаг запуска таймера
 
 unsigned long /*uint32_t*/ timMillis = 0;
 unsigned long /*uint32_t*/ oldMillis = 0;
@@ -115,20 +117,20 @@ unsigned long /*uint32_t*/ mill;  // переменная под millis()
 unsigned long /*uint32_t*/ prevCorrectTime = 0;
 unsigned long /*uint32_t*/ prevReadAnalogTime = 0;  // для отсчета 10 секунд между подстройкой частоты
 unsigned long /*uint32_t*/ prevUpdateDataIna = 0;   // для перерыва между обновлениями данных ina
-unsigned int  wiperValue;         // variable to hold wipervalue for MCP4131 or MCP4151
+unsigned int wiperValue;                            // variable to hold wipervalue for MCP4131 or MCP4151
 unsigned int Data_ina219 = 0;
-long /*int32_t*/ FREQ_MIN = 200000;        // 200kHz
-long /*int32_t*/ FREQ_MAX = 500000;        // 500kHz
+long /*int32_t*/ FREQ_MIN = 200000;  // 200kHz
+long /*int32_t*/ FREQ_MAX = 500000;  // 500kHz
 long /*int32_t*/ ifreq = FREQ_MIN;
 long /*int32_t*/ freq = FREQ_MIN;
-const unsigned long /*uint32_t*/ freqSPI = 250000;   // Частота только для HW SPI AD9833
+const unsigned long /*uint32_t*/ freqSPI = 250000;  // Частота только для HW SPI AD9833
 // UNO SW SPI = 250kHz
 const unsigned long /*uint32_t*/ availableTimers[] = { oneMinute * 15, oneMinute * 30, oneMinute * 45, oneMinute * 60 };
 const int /*uint8_t*/ maxTimers = 4;
 int timerPosition = 0;
-volatile int newEncoderPos;            // Новая позиция энкодера
-static int currentEncoderPos = 0;      // Текущая позиция энкодера
-volatile  int d_resis = 127;           // Средняя позиция потенциометра
+volatile int newEncoderPos;        // Новая позиция энкодера
+static int currentEncoderPos = 0;  // Текущая позиция энкодера
+volatile int d_resis = 127;        // Средняя позиция потенциометра
 
 // Дисплей TFT 240x320 ILI9341 или аналогичный, без разницы, без TOUCH
 #include <TFT_eSPI.h>
@@ -150,7 +152,7 @@ INA219 ina219;
 #include <AD9833.h>  // Пробуем новую по ссылкам в README закладке
 //AD9833 AD(10, 11, 13);     // SW SPI over the HW SPI pins (UNO);
 //AD9833 Ad9833(AD9833_CS);  // HW SPI Defaults to 25MHz internal reference frequency
-AD9833 Ad9833(AD9833_CS, AD9833_MOSI, AD9833_SCK); // SW SPI speed 250kHz
+AD9833 Ad9833(AD9833_CS, AD9833_MOSI, AD9833_SCK);  // SW SPI speed 250kHz
 
 /*
   connecting Rotary encoder
@@ -169,14 +171,12 @@ AD9833 Ad9833(AD9833_CS, AD9833_MOSI, AD9833_SCK); // SW SPI speed 250kHz
 //instead of changing here, rather change numbers above
 AiEsp32RotaryEncoder rotaryEncoder = AiEsp32RotaryEncoder(ROTARY_ENCODER_A_PIN, ROTARY_ENCODER_B_PIN, ROTARY_ENCODER_BUTTON_PIN, ROTARY_ENCODER_VCC_PIN, ROTARY_ENCODER_STEPS);
 
-void rotary_onButtonClick()
-{
+void rotary_onButtonClick() {
   Serial.print("maxTimers = ");
   Serial.println(maxTimers);
   static unsigned long lastTimePressed = 0;
   //ignore multiple press in that time milliseconds
-  if (millis() - lastTimePressed < 500)
-  {
+  if (millis() - lastTimePressed < 500) {
     return;
   }
   lastTimePressed = millis();
@@ -185,22 +185,18 @@ void rotary_onButtonClick()
   Serial.println(" milliseconds after restart");
 }
 
-void rotary_loop()
-{
+void rotary_loop() {
   //dont print anything unless value changed
-  if (rotaryEncoder.encoderChanged())
-  {
+  if (rotaryEncoder.encoderChanged()) {
     Serial.print("Value: ");
     Serial.println(rotaryEncoder.readEncoder());
   }
-  if (rotaryEncoder.isEncoderButtonClicked())
-  {
+  if (rotaryEncoder.isEncoderButtonClicked()) {
     rotary_onButtonClick();
   }
 }
 
-void IRAM_ATTR readEncoderISR()
-{
+void IRAM_ATTR readEncoderISR() {
   rotaryEncoder.readEncoder_ISR();
 }
 
@@ -210,10 +206,10 @@ void IRAM_ATTR readEncoderISR()
    https://github.com/me-no-dev/arduino-esp32fs-plugin */
 #define FORMAT_SPIFFS_IF_FAILED true
 
-const char* data = "Callback function called";
+const char *data = "Callback function called";
 static int callback(void *data, int argc, char **argv, char **azColName) {
   int i;
-  Serial.printf("%s: ", (const char*)data);
+  Serial.printf("%s: ", (const char *)data);
   for (i = 0; i < argc; i++) {
     Serial.printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
   }
@@ -236,7 +232,7 @@ char *zErrMsg = 0;
 int db_exec(sqlite3 *db, const char *sql) {
   Serial.println(sql);
   long start = micros();
-  int rc = sqlite3_exec(db, sql, callback, (void*)data, &zErrMsg);
+  int rc = sqlite3_exec(db, sql, callback, (void *)data, &zErrMsg);
   if (rc != SQLITE_OK) {
     Serial.printf("SQL error: %s\n", zErrMsg);
     sqlite3_free(zErrMsg);
@@ -303,7 +299,8 @@ void resetPotenciometer() {
 void setResistance(int percent) {
   // resetPotenciometer();
   // for (int i = 0; i < percent; i++) {
-  wiperValue = percent;;
+  wiperValue = percent;
+  ;
   // }
   Potentiometer.writeValue(wiperValue);  // Set MCP4151
 }
@@ -543,7 +540,8 @@ void testDisplay() {
   drawTime = millis();
 
   for (int i = 0; i < 1000; i++) {
-    yield(); tft.drawNumber(i, 100, 80, 1);
+    yield();
+    tft.drawNumber(i, 100, 80, 1);
   }
 
   drawTime = millis() - drawTime;
@@ -559,7 +557,8 @@ void testDisplay() {
   drawTime = millis();
 
   for (int i = 0; i < 1000; i++) {
-    yield(); tft.drawNumber(i, 100, 80, 2);
+    yield();
+    tft.drawNumber(i, 100, 80, 2);
   }
 
   drawTime = millis() - drawTime;
@@ -574,7 +573,8 @@ void testDisplay() {
   drawTime = millis();
 
   for (int i = 0; i < 1000; i++) {
-    yield(); tft.drawNumber(i, 100, 80, 4);
+    yield();
+    tft.drawNumber(i, 100, 80, 4);
   }
 
   drawTime = millis() - drawTime;
@@ -589,7 +589,8 @@ void testDisplay() {
   drawTime = millis();
 
   for (int i = 0; i < 1000; i++) {
-    yield(); tft.drawNumber(i, 100, 80, 6);
+    yield();
+    tft.drawNumber(i, 100, 80, 6);
   }
 
   drawTime = millis() - drawTime;
@@ -604,7 +605,8 @@ void testDisplay() {
   drawTime = millis();
 
   for (int i = 0; i < 1000; i++) {
-    yield(); tft.drawNumber(i, 100, 80, 7);
+    yield();
+    tft.drawNumber(i, 100, 80, 7);
   }
 
   drawTime = millis() - drawTime;
@@ -619,7 +621,8 @@ void testDisplay() {
   drawTime = millis();
 
   for (int i = 0; i < 1000; i++) {
-    yield(); tft.drawNumber(i, 100, 80, 8);
+    yield();
+    tft.drawNumber(i, 100, 80, 8);
   }
 
   drawTime = millis() - drawTime;
@@ -662,8 +665,8 @@ void setup() {
   Serial.println();
 
   // сбрасываем потенциометр в 0%
-  resetPotenciometer();                          // после сброса устанавливаем значение по умолчанию
-  setResistance(currentPotenciometrPercent);     // ждем секунду после настройки потенциометра
+  resetPotenciometer();                       // после сброса устанавливаем значение по умолчанию
+  setResistance(currentPotenciometrPercent);  // ждем секунду после настройки потенциометра
   delay(1000);
 
   pinMode(ON_OFF_CASCADE_PIN, OUTPUT);
@@ -681,10 +684,10 @@ void setup() {
 
   SPI.begin();
   // This MUST be the first command after declaring the AD9833 object
-  Ad9833.begin();              // The loaded defaults are 1000 Hz SINE_WAVE using REG0
-  Ad9833.reset();              // Ресет после включения питания
-  Ad9833.setSPIspeed(freqSPI); // Частота SPI для AD9833 установлена 4 MHz
-  Ad9833.setWave(AD9833_OFF);  // Turn OFF the output
+  Ad9833.begin();               // The loaded defaults are 1000 Hz SINE_WAVE using REG0
+  Ad9833.reset();               // Ресет после включения питания
+  Ad9833.setSPIspeed(freqSPI);  // Частота SPI для AD9833 установлена 4 MHz
+  Ad9833.setWave(AD9833_OFF);   // Turn OFF the output
   delay(10);
   Ad9833.setWave(AD9833_SINE);  // Turn ON and freq MODE SINE the output
 
@@ -709,7 +712,7 @@ void setup() {
   Serial.println("myDisplay - end");
   Serial.println();
 
-  testSqlite3();
+  //testSqlite3();
 
   //we must initialize rotary encoder
   rotaryEncoder.begin();
@@ -717,7 +720,7 @@ void setup() {
   //set boundaries and if values should cycle or not
   //in this example we will set possible values between 0 and 1000;
   bool circleValues = false;
-  rotaryEncoder.setBoundaries(0, 1000, circleValues); //minValue, maxValue, circleValues true|false (when max go to min and vice versa)
+  rotaryEncoder.setBoundaries(0, 1000, circleValues);  //minValue, maxValue, circleValues true|false (when max go to min and vice versa)
 
   /*Rotary acceleration introduced 25.2.2021.
      in case range to select is huge, for example - select a value between 0 and 1000 and we want 785
@@ -726,7 +729,7 @@ void setup() {
      For fine tuning slow down.
   */
   //rotaryEncoder.disableAcceleration(); //acceleration is now enabled by default - disable if you dont need it
-  rotaryEncoder.setAcceleration(250); //or set the value - larger number = more accelearation; 0 or 1 means disabled acceleration
+  rotaryEncoder.setAcceleration(250);  //or set the value - larger number = more accelearation; 0 or 1 means disabled acceleration
 
   memTimers = availableTimers[0];  // выставляем 15 минут по умолчанию
 #ifdef DEBUG
@@ -736,6 +739,8 @@ void setup() {
   //currentEncoderPos = wiperValue;
   Potentiometer.writeValue(wiperValue);  // Set MCP4131 or MCP4151 to mid position
 
+  //Энкодер зацепим за тикер
+  //my_encoder.attach(encPeriod, rotary_loop);
 } /******************** E N D   S E T U P *******************/
 
 
@@ -743,6 +748,6 @@ void setup() {
 void loop() {
   //in loop call your custom function which will process rotary encoder values
   rotary_loop();
-  delay(50); //or do whatever you need to do...
+  delay(50);  //or do whatever you need to do...
 
-}/******************** E N D   L O O P *******************/
+} /******************** E N D   L O O P *******************/
