@@ -37,7 +37,7 @@
 
 #include <Ticker.h>
 Ticker my_encoder;
-float encPeriod = 0.25;
+float encPeriod = 0.05;
 
 // ***   ***   ***           Для ESP32 подключаем SPI так:
 #define HSPIs        // Дисплей и AD9833 на HSPI, MCP4151 на VSPI
@@ -741,14 +741,14 @@ void setup() {
   Potentiometer.writeValue(wiperValue);  // Set MCP4131 or MCP4151 to mid position
 
   //Энкодер зацепим за тикер
-  //my_encoder.attach(encPeriod, rotary_loop);
+  my_encoder.attach(encPeriod, rotary_loop);
 } /******************** E N D   S E T U P *******************/
 
 
 /************************ L O O P ***************************/
 void loop() {
   //in loop call your custom function which will process rotary encoder values
-  rotary_loop();
+  //rotary_loop();
   delay(50);  //or do whatever you need to do...
 
 } /******************** E N D   L O O P *******************/
