@@ -656,7 +656,7 @@ void setup() {
 
   // Дисплей
   tft.init();
-  tft.setRotation(3);
+  tft.setRotation(3); // разъём слева от меня (1 - справа)
   tft.fillScreen(TFT_BLACK);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
   Serial.println("Start TEST Grafic Display");
