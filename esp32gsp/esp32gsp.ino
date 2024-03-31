@@ -1,4 +1,4 @@
-// Генератор для катушки Мишина на контроллере ESP32
+ // Генератор для катушки Мишина на контроллере ESP32
 // Partition Scheme: NO OTA (2MB APP, 2MB SPIFFS)
 // При компиляции, в настройках IDE оключить все уведомления 
 // иначе вылетит по ошибке на sqlite3
@@ -656,7 +656,7 @@ void setup() {
 
   // Дисплей
   tft.init();
-  tft.setRotation(1);
+  tft.setRotation(3);
   tft.fillScreen(TFT_BLACK);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
   Serial.println("Start TEST Grafic Display");
