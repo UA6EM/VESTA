@@ -33,7 +33,7 @@
 
 #include "AiEsp32RotaryEncoder.h"
 #include "Arduino.h"
-#include "config.h"
+#include "confign.h"
 
 #include <Ticker.h>
 Ticker my_encoder;
@@ -633,6 +633,10 @@ void testDisplay() {
   tft.drawString(" ms per character", xpos, 180, 4);
   if (drawTime < 200) tft.drawString("Font 8 not loaded!", 50, 210, 4);
   delay(4000);
+
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+  tft.drawString(" ESP32 GSP VESTA  ", 40, 110, 4);
 }
 
 void testFreq(float fGo, float fEnd, float fDelta) {
@@ -708,7 +712,7 @@ void setup() {
   Ad9833.setWave(AD9833_SINE);  // Turn ON and freq MODE SINE the output
 
   // тест AD9833
-  testFreq(10000,12000000,10000);
+  testFreq(10000, 12000000, 10000);
 
 
   // выставляем минимальную частоту для цикла определения максимального тока
@@ -761,8 +765,8 @@ void setup() {
 
   //Энкодер зацепим за тикер
   my_encoder.attach(encPeriod, rotary_loop);
-  
- Serial.println("END SETUP");
+
+  Serial.println("END SETUP");
 } /******************** E N D   S E T U P *******************/
 
 
