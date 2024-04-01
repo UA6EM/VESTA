@@ -2,7 +2,7 @@
 // Partition Scheme: NO OTA (2MB APP, 2MB SPIFFS)
 // При компиляции, в настройках IDE оключить все уведомления
 // иначе вылетит по ошибке на sqlite3
-
+// Важно!!! Измените настройки на Вашу WIFI сеть в конфигурационном файле
 
 #define WIFI   // Используем модуль вайфая
 #define DEBUG  // Включить отладку
@@ -33,7 +33,7 @@
 
 #include "AiEsp32RotaryEncoder.h"
 #include "Arduino.h"
-#include "confign.h"
+#include "config.h"
 
 #include <Ticker.h>
 Ticker my_encoder;
