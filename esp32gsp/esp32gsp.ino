@@ -10,6 +10,7 @@
 // 1. Клонируйте проект: git clone https://github.com/UA6EM/VESTA
 // 2. Исключите конфигурационный файл из индекса:
 //    git update-index --assume-unchanged esp32gsp/config.h
+//  (для отмены git update-index --no-assume-unchanged your_file)
 // 3. Исправьте конфигурацию в соответсвии с вашей сетью
 //    Изменения в этом файле на локальном компьютере теперь
 //    не попадут на GITHUB 
