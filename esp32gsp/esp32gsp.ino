@@ -13,7 +13,7 @@
 //  (для отмены git update-index --no-assume-unchanged your_file)
 // 3. Исправьте конфигурацию в соответсвии с вашей сетью
 //    Изменения в этом файле на локальном компьютере теперь
-//    не попадут на GITHUB 
+//    не попадут на GITHUB
 
 
 #define WIFI   // Используем модуль вайфая
@@ -724,9 +724,16 @@ void setup() {
   Ad9833.setWave(AD9833_SINE);  // Turn ON and freq MODE SINE the output
 
   // тест AD9833
-  testFreq(10000, 12000000, 10000);
-
-
+  testFreq(10000, 12000000, 1000);
+  Ad9833.setWave(AD9833_TRIANGLE);
+  testFreq(10000, 12000000, 1000);
+  Ad9833.setWave(AD9833_SQUARE1);
+  testFreq(10000, 12000000, 1000);
+  Ad9833.setWave(AD9833_SQUARE2);
+  testFreq(10000, 12000000, 1000);
+  // END тест AD9833
+  
+  Ad9833.setWave(AD9833_SINE);
   // выставляем минимальную частоту для цикла определения максимального тока
   Ad9833.setFrequency((float)FREQ_MIN, 0);
 
