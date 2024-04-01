@@ -1,6 +1,6 @@
- // Генератор для катушки Мишина на контроллере ESP32
+// Генератор для катушки Мишина на контроллере ESP32
 // Partition Scheme: NO OTA (2MB APP, 2MB SPIFFS)
-// При компиляции, в настройках IDE оключить все уведомления 
+// При компиляции, в настройках IDE оключить все уведомления
 // иначе вылетит по ошибке на sqlite3
 
 
@@ -635,6 +635,21 @@ void testDisplay() {
   delay(4000);
 }
 
+void testFreq(float fGo, float fEnd, float fDelta) {
+  float newFreq = fGo;
+  float newEnd = fEnd;
+  float newDelta = fDelta;
+  if (newEnd <= 12000000) {     // для AD9833
+    if (newDelta <= 1000000) {  // Шаг не больше мегагерца
+      while (newFreq <= newEnd) {
+        Ad9833.setFrequency(newFreq, 0);
+        newFreq += newDelta;
+        Serial.println(newFreq);
+      }
+    }
+  }
+}
+
 
 /*********************** S E T U P ***********************/
 void setup() {
@@ -692,6 +707,10 @@ void setup() {
   delay(10);
   Ad9833.setWave(AD9833_SINE);  // Turn ON and freq MODE SINE the output
 
+  // тест AD9833
+  testFreq(10000,12000000,10000);
+
+
   // выставляем минимальную частоту для цикла определения максимального тока
   Ad9833.setFrequency((float)FREQ_MIN, 0);
 
@@ -713,7 +732,7 @@ void setup() {
   Serial.println("myDisplay - end");
   Serial.println();
 
-  //testSqlite3();
+  testSqlite3();
 
   //we must initialize rotary encoder
   rotaryEncoder.begin();
@@ -742,6 +761,8 @@ void setup() {
 
   //Энкодер зацепим за тикер
   my_encoder.attach(encPeriod, rotary_loop);
+  
+ Serial.println("END SETUP");
 } /******************** E N D   S E T U P *******************/
 
 
