@@ -46,6 +46,7 @@
 #include "AiEsp32RotaryEncoder.h"
 #include "Arduino.h"
 #include "config.h"
+//#include "function.h"
 
 #include <Ticker.h>
 Ticker my_encoder;
@@ -144,6 +145,7 @@ int timerPosition = 0;
 volatile int newEncoderPos;        // Новая позиция энкодера
 static int currentEncoderPos = 0;  // Текущая позиция энкодера
 volatile int d_resis = 127;        // Средняя позиция потенциометра
+unsigned long drawTime = 0;        // Для тестирования дисплея
 
 // Дисплей TFT 240x320 ILI9341 или аналогичный, без разницы, без TOUCH
 #include <TFT_eSPI.h>
@@ -279,28 +281,6 @@ void setTimer() {
   memTimers = availableTimers[timerPosition];
 }
 
-void testMCP4151() {
-#ifdef MCP4151MOD
-  d_resis = 255;
-#else
-  d_resis = 127;
-#endif
-
-  Serial.println("START Test MCP4151");
-  for (int i = 0; i < d_resis; i++) {
-    Potentiometer.writeValue(i);
-    delay(100);
-    Serial.print("MCP4151 = ");
-    Serial.println(i);
-  }
-  for (int j = d_resis; j >= 1; --j) {
-    Potentiometer.writeValue(j);
-    delay(100);
-    Serial.print("MCP4151 = ");
-    Serial.println(j);
-  }
-  Serial.println("STOP Test MCP4151");
-}
 
 void resetPotenciometer() {
   // Понижаем сопротивление до 0%:
@@ -546,126 +526,6 @@ void testSqlite3() {
   sqlite3_close(db2);
 }
 
-// ************** Т Е С Т  Д И С П Л Е Я *****************/
-unsigned long drawTime = 0;
-
-void testDisplay() {
-  drawTime = millis();
-
-  for (int i = 0; i < 1000; i++) {
-    yield();
-    tft.drawNumber(i, 100, 80, 1);
-  }
-
-  drawTime = millis() - drawTime;
-  tft.setTextColor(TFT_RED, TFT_BLACK);
-  int xpos = 20;
-  xpos += tft.drawFloat(drawTime / 2890.0, 3, xpos, 180, 4);
-  tft.drawString(" ms per character", xpos, 180, 4);
-  if (drawTime < 100) tft.drawString("Font 1 not loaded!", 50, 210, 4);
-  yield();
-  delay(4000);
-  tft.fillScreen(TFT_BLACK);
-  tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  drawTime = millis();
-
-  for (int i = 0; i < 1000; i++) {
-    yield();
-    tft.drawNumber(i, 100, 80, 2);
-  }
-
-  drawTime = millis() - drawTime;
-  tft.setTextColor(TFT_RED, TFT_BLACK);
-  xpos = 20;
-  xpos += tft.drawFloat(drawTime / 2890.0, 3, xpos, 180, 4);
-  tft.drawString(" ms per character", xpos, 180, 4);
-  if (drawTime < 200) tft.drawString("Font 2 not loaded!", 50, 210, 4);
-  delay(4000);
-  tft.fillScreen(TFT_BLACK);
-  tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  drawTime = millis();
-
-  for (int i = 0; i < 1000; i++) {
-    yield();
-    tft.drawNumber(i, 100, 80, 4);
-  }
-
-  drawTime = millis() - drawTime;
-  tft.setTextColor(TFT_RED, TFT_BLACK);
-  xpos = 20;
-  xpos += tft.drawFloat(drawTime / 2890.0, 3, xpos, 180, 4);
-  tft.drawString(" ms per character", xpos, 180, 4);
-  if (drawTime < 200) tft.drawString("Font 4 not loaded!", 50, 210, 4);
-  delay(4000);
-  tft.fillScreen(TFT_BLACK);
-  tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  drawTime = millis();
-
-  for (int i = 0; i < 1000; i++) {
-    yield();
-    tft.drawNumber(i, 100, 80, 6);
-  }
-
-  drawTime = millis() - drawTime;
-  tft.setTextColor(TFT_RED, TFT_BLACK);
-  xpos = 20;
-  xpos += tft.drawFloat(drawTime / 2890.0, 3, xpos, 180, 4);
-  tft.drawString(" ms per character", xpos, 180, 4);
-  if (drawTime < 200) tft.drawString("Font 6 not loaded!", 50, 210, 4);
-  delay(4000);
-  tft.fillScreen(TFT_BLACK);
-  tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  drawTime = millis();
-
-  for (int i = 0; i < 1000; i++) {
-    yield();
-    tft.drawNumber(i, 100, 80, 7);
-  }
-
-  drawTime = millis() - drawTime;
-  tft.setTextColor(TFT_RED, TFT_BLACK);
-  xpos = 20;
-  xpos += tft.drawFloat(drawTime / 2890.0, 3, xpos, 180, 4);
-  tft.drawString(" ms per character", xpos, 180, 4);
-  if (drawTime < 200) tft.drawString("Font 7 not loaded!", 50, 210, 4);
-  delay(4000);
-  tft.fillScreen(TFT_YELLOW);
-  tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  drawTime = millis();
-
-  for (int i = 0; i < 1000; i++) {
-    yield();
-    tft.drawNumber(i, 100, 80, 8);
-  }
-
-  drawTime = millis() - drawTime;
-  tft.setTextColor(TFT_RED, TFT_BLACK);
-  xpos = 20;
-  xpos += tft.drawFloat(drawTime / 2890.0, 3, xpos, 180, 4);
-  tft.drawString(" ms per character", xpos, 180, 4);
-  if (drawTime < 200) tft.drawString("Font 8 not loaded!", 50, 210, 4);
-  delay(4000);
-
-  tft.fillScreen(TFT_BLACK);
-  tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-  tft.drawString(" ESP32 GSP VESTA  ", 40, 110, 4);
-}
-
-void testFreq(float fGo, float fEnd, float fDelta) {
-  float newFreq = fGo;
-  float newEnd = fEnd;
-  float newDelta = fDelta;
-  if (newEnd <= 12000000) {     // для AD9833
-    if (newDelta <= 1000000) {  // Шаг не больше мегагерца
-      while (newFreq <= newEnd) {
-        Ad9833.setFrequency(newFreq, 0);
-        newFreq += newDelta;
-        Serial.println(newFreq);
-      }
-    }
-  }
-}
-
 
 /*********************** S E T U P ***********************/
 void setup() {
@@ -687,7 +547,7 @@ void setup() {
 
   // Дисплей
   tft.init();
-  tft.setRotation(3); // разъём слева от меня (1 - справа)
+  tft.setRotation(3);  // разъём слева от меня (1 - справа)
   tft.fillScreen(TFT_BLACK);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
   Serial.println("Start TEST Grafic Display");
@@ -721,19 +581,22 @@ void setup() {
   Ad9833.setSPIspeed(freqSPI);  // Частота SPI для AD9833 установлена 4 MHz
   Ad9833.setWave(AD9833_OFF);   // Turn OFF the output
   delay(10);
-  Ad9833.setWave(AD9833_SINE);  // Turn ON and freq MODE SINE the output
 
+#ifdef DEBUG
   // тест AD9833
+  Ad9833.setWave(AD9833_SQUARE2);
   testFreq(10000, 12000000, 1000);
   Ad9833.setWave(AD9833_TRIANGLE);
   testFreq(10000, 12000000, 1000);
   Ad9833.setWave(AD9833_SQUARE1);
   testFreq(10000, 12000000, 1000);
   Ad9833.setWave(AD9833_SQUARE2);
+  Ad9833.setWave(AD9833_SINE);  // Turn ON and freq MODE SINE the output
   testFreq(10000, 12000000, 1000);
   // END тест AD9833
-  
-  Ad9833.setWave(AD9833_SINE);
+#endif
+
+  Ad9833.setWave(AD9833_SINE);  // Turn ON and freq MODE SINE the output
   // выставляем минимальную частоту для цикла определения максимального тока
   Ad9833.setFrequency((float)FREQ_MIN, 0);
 
