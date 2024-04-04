@@ -4,11 +4,11 @@
  *  04.04.2024 - проверена работа экрана LCD
  *  
  *  используемые библиотеки:
- *  AiEsp32RotaryEncoder.h - https://www.arduino.cc/reference/en/libraries/ai-esp32-rotary-encoder/
- *  LiquidCrystal_I2C.h    - https://codeload.github.com/johnrickman/LiquidCrystal_I2C/zip/refs/heads/master
- *  Ticker.h               - https://www.arduino.cc/reference/en/libraries/ticker/
- *  MCP41xxxx.h            - https://github.com/UA6EM/MCP4xxxx
- *  AD9833.h               - https://github.com/UA6EM/AD9833/tree/mpgsp
+ *  Ai_Esp32_Rotary_Encoder-1.6.0 версии 1.6 - https://www.arduino.cc/reference/en/libraries/ai-esp32-rotary-encoder/
+ *  LiquidCrystal_I2C-master версии 1.1.4    - https://codeload.github.com/johnrickman/LiquidCrystal_I2C/zip/refs/heads/master
+ *  Ticker версии 2.0.0                      - https://www.arduino.cc/reference/en/libraries/ticker/
+ *  MCP4xxxx-ua6em версии 0.1                - https://github.com/UA6EM/MCP4xxxx
+ *  AD9833-mpgsp версии 0.4.0                - https://github.com/UA6EM/AD9833/tree/mpgsp
  */
 
 // Определения
