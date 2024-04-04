@@ -15,16 +15,16 @@
 //    не попадут на GITHUB
 
 /*
- * Версия:
- *  04.04.2024 - проверена работа экрана LCD
- *  
- *  используемые библиотеки:
- *  Ai_Esp32_Rotary_Encoder-1.6.0 версии 1.6 - https://www.arduino.cc/reference/en/libraries/ai-esp32-rotary-encoder/
- *  LiquidCrystal_I2C-master версии 1.1.4    - https://codeload.github.com/johnrickman/LiquidCrystal_I2C/zip/refs/heads/master
- *  Ticker версии 2.0.0                      - https://www.arduino.cc/reference/en/libraries/ticker/
- *  MCP4xxxx-ua6em версии 0.1                - https://github.com/UA6EM/MCP4xxxx
- *  AD9833-mpgsp версии 0.4.0                - https://github.com/UA6EM/AD9833/tree/mpgsp
- */
+   Версия:
+    04.04.2024 - проверена работа экрана LCD
+
+    используемые библиотеки:
+    Ai_Esp32_Rotary_Encoder-1.6.0 версии 1.6 - https://www.arduino.cc/reference/en/libraries/ai-esp32-rotary-encoder/
+    LiquidCrystal_I2C-master версии 1.1.4    - https://codeload.github.com/johnrickman/LiquidCrystal_I2C/zip/refs/heads/master
+    Ticker версии 2.0.0                      - https://www.arduino.cc/reference/en/libraries/ticker/
+    MCP4xxxx-ua6em версии 0.1                - https://github.com/UA6EM/MCP4xxxx
+    AD9833-mpgsp версии 0.4.0                - https://github.com/UA6EM/AD9833/tree/mpgsp
+*/
 
 // Определения
 
@@ -192,6 +192,94 @@ void IRAM_ATTR readEncoderISR() {
 }
 
 //    *** Используемые подпрограммы выносим сюда ***   //
+#define FORMAT_SPIFFS_IF_FAILED true
+
+const char *data = "Callback function called";
+static int callback(void *data, int argc, char **argv, char **azColName) {
+  int i;
+  Serial.printf("%s: ", (const char *)data);
+  for (i = 0; i < argc; i++) {
+    Serial.printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+  }
+  Serial.printf("\n");
+  return 0;
+}
+
+int db_open(const char *filename, sqlite3 **db) {
+  int rc = sqlite3_open(filename, db);
+  if (rc) {
+    Serial.printf("Can't open database: %s\n", sqlite3_errmsg(*db));
+    return rc;
+  } else {
+    Serial.printf("Opened database successfully\n");
+  }
+  return rc;
+}
+
+char *zErrMsg = 0;
+int db_exec(sqlite3 *db, const char *sql) {
+  Serial.println(sql);
+  long start = micros();
+  int rc = sqlite3_exec(db, sql, callback, (void *)data, &zErrMsg);
+  if (rc != SQLITE_OK) {
+    Serial.printf("SQL error: %s\n", zErrMsg);
+    sqlite3_free(zErrMsg);
+  } else {
+    Serial.printf("Operation done successfully\n");
+  }
+  Serial.print(F("Time taken:"));
+  Serial.println(micros() - start);
+  return rc;
+}
+
+void readSqlite3() {
+  sqlite3 *db1;
+  int rc;
+  if (!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)) {
+    Serial.println("Failed to mount file system");
+    return;
+  }
+
+  // list SPIFFS contents
+  File root = SPIFFS.open("/");
+  if (!root) {
+    Serial.println("- failed to open directory");
+    return;
+  }
+  if (!root.isDirectory()) {
+    Serial.println(" - not a directory");
+    return;
+  }
+  yield();
+  File file = root.openNextFile();
+  yield();
+  while (file) {
+    if (file.isDirectory()) {
+      Serial.print("  DIR : ");
+      Serial.println(file.name());
+    } else {
+      Serial.print("  FILE: ");
+      Serial.print(file.name());
+      Serial.print("\tSIZE: ");
+      Serial.println(file.size());
+    }
+    file = root.openNextFile();
+  }
+  yield();
+  sqlite3_initialize();
+  if (db_open("/spiffs/zepper.db", &db1))
+    return;
+
+  yield();
+  rc = db_exec(db1, "SELECT * FROM frequency");
+  if (rc != SQLITE_OK) {
+    sqlite3_close(db1);
+    return;
+  }
+  yield();
+  sqlite3_close(db1);
+}
+
 
 /*** Обработчик кнопки энкодера ***/
 //------Cl_Btn----------------------
@@ -554,7 +642,7 @@ void setup() {
   Ad9833.setWave(AD9833_SINE);  // Turn ON and freq MODE SINE the output
 
   // выставляем минимальную частоту для цикла определения максимального тока
-  Ad9833.setFrequency((float)FREQ_MIN,AD9833_SINE);
+  Ad9833.setFrequency((float)FREQ_MIN, AD9833_SINE);
 
   Serial.print("freq=");
   Serial.println(FREQ_MIN);
@@ -573,6 +661,10 @@ void setup() {
   wiperValue = d_resis / 2;
   //currentEncoderPos = wiperValue;
   Potentiometer.writeValue(wiperValue);  // Set MCP4131 or MCP4151 to mid position
+
+  // Читаем базу
+  readSqlite3();
+
 }  //******** END SETUP ********//
 
 
@@ -600,9 +692,9 @@ void loop() {
     memTimers = setTimerLCD(memTimers);
   }
 
-//  ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-//    newEncoderPos = encoder.getPosition();
-//  }
+  //  ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+  //    newEncoderPos = encoder.getPosition();
+  //  }
 
   // если значение экодера поменялось
   if (currentEncoderPos != newEncoderPos) {
@@ -705,45 +797,45 @@ void setZepper() {
 }
 
 /*
- * G1 - TX
- * G2 - PIN_RELE 2
- * G3 - RX
- * g4 -
- * G5 - MCP41x1_CS    5            // Define chipselect pin for MCP41010
- * G6 -
- * G7 -
- * G8 -
- * G9 -
- * G10 -
- * G11 -
- * G12 - AD9833_MISO 12
- * G13 - AD9833_MOSI 13
- * G14 - AD9833_SCK  14
- * G15 - AD9833_CS   15
- * G16 -
- * G17 -
- * G18 - MCP41x1_SCK   18           // Define SCK pin for MCP41010
- * G19 - MCP41x1_MISO  19           // Define MISO pin for MCP4131 or MCP41010
- * G20 -
- * G21 - SDA // LCD, INA219
- * G22 - SCK // LCD, INA219
- * G23 - MCP41x1_MOSI   23          // Define MOSI pin for MCP4131 or MCP41010
- * G24 -
- * G25 - PIN_ENC_BUTTON 25
- * G26 -
- * G27 -
- * G28 -
- * G29 -
- * G30 -
- * G31 -
- * G32 - ON_OFF_CASCADE_PIN
- * G33 - PIN_ZUM 33
- * G34 - ROTARY_ENCODER_A_PIN 34
- * G35 - ROTARY_ENCODER_B_PIN 35
- * G36 - ROTARY_ENCODER_BUTTON_PIN 36
- * 
- * G39 - CORRECT_PIN A3 (ADC3)  SENS_IMPLOSION
- * 
- * 
- * 
- */
+   G1 - TX
+   G2 - PIN_RELE 2
+   G3 - RX
+   g4 -
+   G5 - MCP41x1_CS    5            // Define chipselect pin for MCP41010
+   G6 -
+   G7 -
+   G8 -
+   G9 -
+   G10 -
+   G11 -
+   G12 - AD9833_MISO 12
+   G13 - AD9833_MOSI 13
+   G14 - AD9833_SCK  14
+   G15 - AD9833_CS   15
+   G16 -
+   G17 -
+   G18 - MCP41x1_SCK   18           // Define SCK pin for MCP41010
+   G19 - MCP41x1_MISO  19           // Define MISO pin for MCP4131 or MCP41010
+   G20 -
+   G21 - SDA // LCD, INA219
+   G22 - SCK // LCD, INA219
+   G23 - MCP41x1_MOSI   23          // Define MOSI pin for MCP4131 or MCP41010
+   G24 -
+   G25 - PIN_ENC_BUTTON 25
+   G26 -
+   G27 -
+   G28 -
+   G29 -
+   G30 -
+   G31 -
+   G32 - ON_OFF_CASCADE_PIN
+   G33 - PIN_ZUM 33
+   G34 - ROTARY_ENCODER_A_PIN 34
+   G35 - ROTARY_ENCODER_B_PIN 35
+   G36 - ROTARY_ENCODER_BUTTON_PIN 36
+
+   G39 - CORRECT_PIN A3 (ADC3)  SENS_IMPLOSION
+
+
+
+*/
