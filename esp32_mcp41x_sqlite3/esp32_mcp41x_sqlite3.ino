@@ -13,6 +13,7 @@
 // 3. Исправьте конфигурацию в соответсвии с вашей сетью
 //    Изменения в этом файле на локальном компьютере теперь
 //    не попадут на GITHUB
+
 /*
  * Версия:
  *  04.04.2024 - проверена работа экрана LCD
@@ -26,6 +27,8 @@
  */
 
 // Определения
+
+#define WIFI                             // Используем модуль вайфая
 //#define DEBUG                          // Замаркировать если не нужны тесты
 //#define UA6EM                          // Замаркировать, если скетч для пользователя CIPARS
 #define SECONDS(x) ((x)*1000UL)
@@ -48,6 +51,22 @@
 //#define ROTARY_ENCODER_STEPS 2
 //#define ROTARY_ENCODER_STEPS 4
 
+
+#if (defined(ESP32))
+#ifdef WIFI
+#include <WiFi.h>
+//#include <HTTPClient.h>
+#include <WiFiClient.h>
+#endif
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <sqlite3.h>
+
+#include <SPI.h>
+#include <FS.h>
+#include "SPIFFS.h"
+
 #include "AiEsp32RotaryEncoder.h"
 #include "Arduino.h"
 #include "config.h"
@@ -55,6 +74,8 @@
 #include <Ticker.h>
 Ticker my_encoder;
 float encPeriod = 0.05;
+#endif
+
 
 #define PIN_RELE 2
 
